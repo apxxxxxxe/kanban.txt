@@ -18,7 +18,7 @@ type TuiInterface interface {
 
 type Tui struct {
 	Config             *db.Config
-	DB                 *db.FeedDB
+	DB                 *db.Database
 	App                *tview.Application
 	Pages              *tview.Pages
 	TodoPane           *TodoTable
@@ -56,7 +56,7 @@ const (
 	enumDoingPane
 )
 
-var ErrImportFileNotFound = errors.Errorf(db.ImportListPath + " not found")
+var ErrImportFileNotFound = errors.Errorf(db.ImportPath + " not found")
 
 func NewTui() *Tui {
 	tview.Styles.ContrastBackgroundColor = tview.Styles.PrimitiveBackgroundColor
@@ -143,11 +143,19 @@ func (t *Tui) Help(help [][]string) {
 	t.HelpWidget.SetText(s)
 }
 
+func (t *Tui) SetTasks() {
+	t.TodoPane.ResetCell(t.DB.TodoTasks)
+	t.DoingPane.ResetCell(t.DB.DoingTasks)
+	t.DonePane.ResetCell(t.DB.DoneTasks)
+}
+
 func (t *Tui) Run() error {
 
 	if err := t.DB.LoadFeeds(); err != nil {
 		return err
 	}
+
+	t.SetTasks()
 
 	t.setFocus(t.TodoPane.Table.Box)
 

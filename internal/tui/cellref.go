@@ -7,9 +7,9 @@ type FeedCellRef struct {
 	Cursor int
 }
 
-func NewFeedCellRef(f *todo.Task) *FeedCellRef {
+func NewFeedCellRef(f todo.Task) *FeedCellRef {
 	return &FeedCellRef{
-		Feed:   f,
+		Feed:   &f,
 		Cursor: 0,
 	}
 }

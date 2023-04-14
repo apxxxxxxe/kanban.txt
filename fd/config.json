@@ -1,0 +1,11 @@
+{
+	"color": {
+		"enablePaint": true,
+		"maxHue": 360,
+		"minHue": 0,
+		"maxSaturatio": 100,
+		"minSaturatio": 30,
+		"maxLightness": 100,
+		"minLightness": 60
+	}
+}

@@ -12,11 +12,14 @@ type TodoTable struct {
 
 var ErrFeedNotExist = errors.Errorf("Feed Not Exist")
 
-func (t *TodoTable) setCell(f *todo.Task) *tview.TableCell {
-	if f == nil {
-		return nil
+func (t *TodoTable) ResetCell(tasklist todo.TaskList) {
+	t.Clear()
+	for _, task := range tasklist {
+		t.setCell(task)
 	}
+}
 
+func (t *TodoTable) setCell(f todo.Task) *tview.TableCell {
 	maxRow := t.GetRowCount()
 	targetRow := maxRow
 	for i := 0; i < maxRow; i++ {

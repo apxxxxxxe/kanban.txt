@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 
 	todo "github.com/1set/todotxt"
-	"github.com/apxxxxxxe/kanban.txt/pkg/util"
 )
 
 const (
@@ -18,36 +17,65 @@ const (
 var (
 	DataPath       = filepath.Join(getDataPath(), "data")
 	ExportListPath = filepath.Join(getDataPath(), "list_export.txt")
-	ImportListPath = filepath.Join(getDataPath(), "list.txt")
+	ImportPath     = filepath.Join(getDataPath(), "todo.txt")
 	ConfigPath     = filepath.Join(getDataPath(), "config.json")
 )
 
-type FeedDB struct {
-	TodoTasks  []*todo.Task
-	DoingTasks []*todo.Task
-	DoneTasks  []*todo.Task
+type Database struct {
+	TodoTasks  todo.TaskList
+	DoingTasks todo.TaskList
+	DoneTasks  todo.TaskList
 }
 
-func NewDB() *FeedDB {
-	db := &FeedDB{
-		TodoTasks:  []*todo.Task{},
-		DoingTasks: []*todo.Task{},
-		DoneTasks:  []*todo.Task{},
+func NewDB() *Database {
+	db := &Database{
+		TodoTasks:  todo.TaskList{},
+		DoingTasks: todo.TaskList{},
+		DoneTasks:  todo.TaskList{},
 	}
 	return db
 }
 
 func getDataPath() string {
-	configDir, _ := os.UserConfigDir()
+	configDir, _ := os.Getwd()
+	// configDir, _ := os.UserConfigDir()
 	return filepath.Join(configDir, dataRoot)
 }
 
-func (d *FeedDB) LoadFeeds() error {
-	if !util.IsDir(DataPath) {
-		if err := os.MkdirAll(DataPath, 0755); err != nil {
-			return err
+func RemoveContexts(t todo.Task) todo.Task {
+	raw := ""
+	for _, s := range t.Segments() {
+		if s.Type != todo.SegmentContext {
+			raw += s.Display + " "
 		}
 	}
+	parsed, _ := todo.ParseTask(raw)
+	return *parsed
+}
+
+func (d *Database) LoadFeeds() error {
+	tasklist, err := todo.LoadFromPath(ImportPath)
+	if err != nil {
+		return err
+	}
+
+	// Remove contexts from completed tasks
+	for _, task := range tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterByContext("doing")) {
+		for j := range tasklist {
+			if tasklist[j].ID == task.ID {
+				tasklist[j] = RemoveContexts(task)
+			}
+		}
+	}
+
+	err = tasklist.Sort(todo.SortPriorityAsc, todo.SortDueDateAsc)
+	if err != nil {
+		return err
+	}
+
+	d.TodoTasks = tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing")))
+	d.DoingTasks = tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterByContext("doing"))
+	d.DoneTasks = tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing")))
 
 	return nil
 }
