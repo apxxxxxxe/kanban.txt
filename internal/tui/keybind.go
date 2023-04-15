@@ -6,9 +6,28 @@ import (
 )
 
 func (t *Tui) setKeybind() {
+	t.App.SetInputCapture(t.AppInputCaptureFunc)
 	t.TodoPane.SetInputCapture(t.todoPaneInputCaptureFunc)
 	t.DoingPane.SetInputCapture(t.doingPaneInputCaptureFunc)
 	t.DonePane.SetInputCapture(t.donePaneInputCaptureFunc)
+	t.InputWidget.SetInputCapture(t.inputWidgetInputCaptureFunc)
+}
+
+func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Rune() {
+	case 'q':
+		// Quit
+		t.App.Stop()
+		return nil
+	case 'n':
+		// New task
+		t.Pages.ShowPage(inputField)
+		t.App.SetFocus(t.InputWidget)
+		t.InputWidget.Mode = 'n'
+		return nil
+	}
+
+	return event
 }
 
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -113,6 +132,29 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			t.DoingPane.Select(n-1, 0)
 		}
 		t.App.SetFocus(t.DoingPane)
+	}
+
+	return event
+}
+
+func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Key() {
+	case tcell.KeyEnter:
+		input := t.InputWidget.GetText()
+		task, err := todo.ParseTask(input)
+		if err != nil {
+			t.Notify(err.Error(), true)
+			return nil
+		}
+
+		t.DB.TodoTasks.AddTask(task)
+		t.TodoPane.ResetCell(t.DB.TodoTasks)
+
+		t.InputWidget.SetText("")
+		t.Pages.HidePage(inputField)
+		t.App.SetFocus(t.TodoPane)
+		t.InputWidget.Mode = ' '
+		return nil
 	}
 
 	return event

@@ -47,6 +47,7 @@ const (
 	doingPaneTitle            = "Doing"
 	donePaneTitle             = "Done"
 	descriptionWidgetTitle    = "Description"
+	helpWidgetTitle           = "Help"
 	infoWidgetTitle           = "Info"
 	colorWidgetTitle          = "Color"
 )
@@ -71,7 +72,7 @@ func NewTui() *Tui {
 		DonePane:           &TodoTable{newTable(donePaneTitle)},
 		DescriptionWidget:  newTextView(descriptionWidgetTitle),
 		InfoWidget:         newTextView(infoWidgetTitle),
-		HelpWidget:         tview.NewTextView().SetTextAlign(1).SetDynamicColors(true),
+		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
 		SelectingFeeds:     []*todo.Task{},
 		LastFocusedWidget:  nil,
@@ -85,9 +86,11 @@ func NewTui() *Tui {
 			AddItem(tui.TodoPane, 0, 1, false).
 			AddItem(tui.DoingPane, 0, 1, false).
 			AddItem(tui.DonePane, 0, 1, false),
-			0, 1, false).
-		AddItem(tui.DescriptionWidget, 2, 0, false).
-		AddItem(tui.HelpWidget, 2, 0, false)
+			0, 3, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+			AddItem(tui.DescriptionWidget, 0, 2, false).
+			AddItem(tui.HelpWidget, 0, 1, false),
+			0, 1, false)
 
 	inputFlex := tview.NewFlex().
 		AddItem(nil, 0, 1, false).
@@ -105,8 +108,8 @@ func NewTui() *Tui {
 
 	tui.setKeybind()
 	tui.setSelectedFunc()
-	// tui.setFocusFunc()
-	// tui.setBlurFunc()
+	tui.setFocusedFunc()
+	tui.setBlurFunc()
 
 	return tui
 }
@@ -118,6 +121,10 @@ func (t *Tui) setFocus(p *tview.Box) {
 
 func (t *Tui) Descript(desc [][]string) {
 	var s string
+	if desc == nil {
+		t.DescriptionWidget.SetText("")
+		return
+	}
 	for _, line := range desc {
 		s += fmt.Sprint("[#a0a0a0::b]", line[0], "[-::-] ", line[1], "\n")
 	}
@@ -143,21 +150,20 @@ func (t *Tui) Help(help [][]string) {
 	t.HelpWidget.SetText(s)
 }
 
-func (t *Tui) SetTasks() {
-	t.TodoPane.ResetCell(t.DB.TodoTasks)
-	t.DoingPane.ResetCell(t.DB.DoingTasks)
-	t.DonePane.ResetCell(t.DB.DoneTasks)
-}
-
 func (t *Tui) Run() error {
 
 	if err := t.DB.LoadFeeds(); err != nil {
 		return err
 	}
 
-	t.SetTasks()
+	t.TodoPane.ResetCell(t.DB.TodoTasks)
+	t.DoingPane.ResetCell(t.DB.DoingTasks)
+	t.DonePane.ResetCell(t.DB.DoneTasks)
 
-	t.setFocus(t.TodoPane.Table.Box)
+	t.doingPaneBlurFunc()
+	t.donePaneBlurFunc()
+
+	t.setFocus(t.TodoPane.Box)
 
 	if err := t.App.Run(); err != nil {
 		t.App.Stop()
