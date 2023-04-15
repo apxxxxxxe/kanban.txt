@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strconv"
+	"time"
 
 	todo "github.com/1set/todotxt"
 )
@@ -26,14 +27,29 @@ func (t *Tui) donePaneSelectionChangedFunc(row, col int) {
 
 func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 	task, ok := table.GetCell(row, col).Reference.(*todo.Task)
+	contexts := ""
+	for _, c := range task.Contexts {
+		contexts += c + " "
+	}
 	if ok {
 		description := [][]string{
 			{"ID", strconv.Itoa(task.ID)},
-			{"CreatedDate", task.CreatedDate.Format(todo.DateLayout)},
+			{"Completed", strconv.FormatBool(task.Completed)},
 			{"Priority", task.Priority},
+			{"Contexts", contexts},
+			{"DueDate", timeToStr(task.DueDate)},
+			{"CompletedDate", timeToStr(task.CompletedDate)},
+			{"CreatedDate", timeToStr(task.CreatedDate)},
 		}
 		t.Descript(description)
 	} else {
 		t.Descript(nil)
 	}
+}
+
+func timeToStr(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(todo.DateLayout)
 }
