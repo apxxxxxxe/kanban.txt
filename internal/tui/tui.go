@@ -103,8 +103,8 @@ func NewTui() *Tui {
 
 	tui.App.SetRoot(tui.Pages, true)
 
-	// tui.setKeyBinding()
-	// tui.setSelectionFunc()
+	tui.setKeybind()
+	tui.setSelectedFunc()
 	// tui.setFocusFunc()
 	// tui.setBlurFunc()
 

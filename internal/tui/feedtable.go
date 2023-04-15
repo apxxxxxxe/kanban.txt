@@ -12,6 +12,17 @@ type TodoTable struct {
 
 var ErrFeedNotExist = errors.Errorf("Feed Not Exist")
 
+func (t *TodoTable) AdjustSelection() {
+	n := t.GetRowCount()
+	if n == 0 {
+		return
+	}
+
+	if row, _ := t.GetSelection(); row > n-1 {
+		t.Select(n-1, 0)
+	}
+}
+
 func (t *TodoTable) ResetCell(tasklist todo.TaskList) {
 	t.Clear()
 	for _, task := range tasklist {
@@ -24,9 +35,9 @@ func (t *TodoTable) setCell(f todo.Task) *tview.TableCell {
 	targetRow := maxRow
 	for i := 0; i < maxRow; i++ {
 		cell := t.GetCell(i, 0)
-		ref, ok := cell.GetReference().(*FeedCellRef)
+		ref, ok := cell.GetReference().(*todo.Task)
 		if ok {
-			if ref.Feed.ID == f.ID {
+			if ref.ID == f.ID {
 				targetRow = i
 				break
 			}
@@ -34,7 +45,7 @@ func (t *TodoTable) setCell(f todo.Task) *tview.TableCell {
 	}
 
 	cell := tview.NewTableCell(f.Todo).
-		SetReference(NewFeedCellRef(f))
+		SetReference(&f)
 
 	t.SetCell(targetRow, 0, cell)
 

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	dataRoot        = "fd"
+	dataRoot        = "kanban"
 	TodaysFeedTitle = "Today's Articles"
 	SavePrefixGroup = "g_"
 	SavePrefixFeed  = "f_"
@@ -37,9 +37,10 @@ func NewDB() *Database {
 }
 
 func getDataPath() string {
-	configDir, _ := os.Getwd()
 	// configDir, _ := os.UserConfigDir()
-	return filepath.Join(configDir, dataRoot)
+	// return filepath.Join(configDir, dataRoot)
+	wd, _ := os.Getwd()
+	return wd
 }
 
 func RemoveContexts(t todo.Task) todo.Task {
