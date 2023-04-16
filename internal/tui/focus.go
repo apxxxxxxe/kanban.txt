@@ -9,14 +9,26 @@ func (t *Tui) setFocusedFunc() {
 }
 
 func (t *Tui) todoPaneInputFocusFunc() {
+	t.TodoPane.SetTitle(todoPaneTitle)
+	t.DoingPane.SetTitle("[l]" + doingPaneTitle)
+	t.DonePane.SetTitle(donePaneTitle)
+	t.DescriptionWidget.SetTitle("[D]" + descriptionWidgetTitle)
 	t.tableInputFocusFunc(t.TodoPane)
 }
 
 func (t *Tui) doingPaneInputFocusFunc() {
+	t.TodoPane.SetTitle("[h]" + todoPaneTitle)
+	t.DoingPane.SetTitle(doingPaneTitle)
+	t.DonePane.SetTitle("[l]" + donePaneTitle)
+	t.DescriptionWidget.SetTitle("[D]" + descriptionWidgetTitle)
 	t.tableInputFocusFunc(t.DoingPane)
 }
 
 func (t *Tui) donePaneInputFocusFunc() {
+	t.TodoPane.SetTitle(todoPaneTitle)
+	t.DoingPane.SetTitle("[h]" + doingPaneTitle)
+	t.DonePane.SetTitle(donePaneTitle)
+	t.DescriptionWidget.SetTitle("[D]" + descriptionWidgetTitle)
 	t.tableInputFocusFunc(t.DonePane)
 }
 

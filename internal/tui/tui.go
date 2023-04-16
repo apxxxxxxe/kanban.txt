@@ -24,7 +24,7 @@ type Tui struct {
 	TodoPane           *TodoTable
 	DoingPane          *TodoTable
 	DonePane           *TodoTable
-	DescriptionWidget  *tview.TextView
+	DescriptionWidget  *tview.Table
 	InfoWidget         *tview.TextView
 	HelpWidget         *tview.TextView
 	InputWidget        *InputBox
@@ -70,7 +70,7 @@ func NewTui() *Tui {
 		TodoPane:           &TodoTable{newTable(todoPaneTitle)},
 		DoingPane:          &TodoTable{newTable(doingPaneTitle)},
 		DonePane:           &TodoTable{newTable(donePaneTitle)},
-		DescriptionWidget:  newTextView(descriptionWidgetTitle),
+		DescriptionWidget:  newTable(descriptionWidgetTitle),
 		InfoWidget:         newTextView(infoWidgetTitle),
 		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
@@ -120,15 +120,14 @@ func (t *Tui) setFocus(p *tview.Box) {
 }
 
 func (t *Tui) Descript(desc [][]string) {
-	var s string
+	t.DescriptionWidget.Clear()
 	if desc == nil {
-		t.DescriptionWidget.SetText("")
 		return
 	}
-	for _, line := range desc {
-		s += fmt.Sprint("[#a0a0a0::b]", line[0], "[-::-] ", line[1], "\n")
+	for i, line := range desc {
+		t.DescriptionWidget.SetCellSimple(i, 0, "[#a0a0a0::b]"+line[0])
+		t.DescriptionWidget.SetCellSimple(i, 1, line[1])
 	}
-	t.DescriptionWidget.SetText(s).ScrollToBeginning()
 }
 
 func (t *Tui) Notify(m string, red bool) {
@@ -162,6 +161,7 @@ func (t *Tui) Run() error {
 
 	t.doingPaneBlurFunc()
 	t.donePaneBlurFunc()
+	t.descriptionWidgetBlurFunc()
 
 	t.setFocus(t.TodoPane.Box)
 

@@ -21,10 +21,12 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case 'n':
 		// New task
-		t.Pages.ShowPage(inputField)
-		t.App.SetFocus(t.InputWidget)
-		t.InputWidget.Mode = 'n'
-		return nil
+		if t.App.GetFocus() != t.InputWidget {
+			t.Pages.ShowPage(inputField)
+			t.App.SetFocus(t.InputWidget)
+			t.InputWidget.Mode = 'n'
+			return nil
+		}
 	}
 
 	return event
@@ -148,6 +150,16 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			t.Notify(err.Error(), true)
 			return nil
 		}
+
+		// remove context "doing"
+		for i, context := range task.Contexts {
+			if context == "doing" {
+				task.Contexts = append(task.Contexts[:i], task.Contexts[i+1:]...)
+				break
+			}
+		}
+
+		task.Reopen()
 
 		t.DB.TodoTasks.AddTask(task)
 		t.TodoPane.ResetCell(t.DB.TodoTasks)
