@@ -9,13 +9,12 @@ type ProjectTable struct {
 	*tview.Table
 }
 
-func (t *ProjectTable) GetCurrentProjectName() string {
-	cell := t.GetCell(t.GetSelection())
-	p, ok := cell.GetReference().(*db.Project)
+func (t *ProjectTable) GetCurrentProject() *db.Project {
+	p, ok := t.GetCell(t.GetSelection()).GetReference().(*db.Project)
 	if !ok {
 		panic("invalid reference")
 	}
-	return p.ProjectName
+	return p
 }
 
 func (t *ProjectTable) ResetCell(projects []*db.Project) {

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	todo "github.com/1set/todotxt"
+	"github.com/1set/todotxt"
 )
 
 const (
@@ -12,7 +12,7 @@ const (
 	TodaysFeedTitle = "Today's Articles"
 	SavePrefixGroup = "g_"
 	SavePrefixFeed  = "f_"
-	noProject       = "NoName"
+	noProject       = "NoProject"
 )
 
 var (
@@ -28,9 +28,9 @@ type Database struct {
 
 type Project struct {
 	ProjectName string
-	TodoTasks   todo.TaskList
-	DoingTasks  todo.TaskList
-	DoneTasks   todo.TaskList
+	TodoTasks   todotxt.TaskList
+	DoingTasks  todotxt.TaskList
+	DoneTasks   todotxt.TaskList
 }
 
 func getDataPath() string {
@@ -40,18 +40,18 @@ func getDataPath() string {
 	return wd
 }
 
-func removeContexts(t todo.Task) todo.Task {
+func removeContexts(t todotxt.Task) todotxt.Task {
 	raw := ""
 	for _, s := range t.Segments() {
-		if s.Type != todo.SegmentContext {
+		if s.Type != todotxt.SegmentContext {
 			raw += s.Display + " "
 		}
 	}
-	parsed, _ := todo.ParseTask(raw)
+	parsed, _ := todotxt.ParseTask(raw)
 	return *parsed
 }
 
-func GetProjectName(t todo.Task) string {
+func GetProjectName(t todotxt.Task) string {
 	projects := t.Projects
 	if len(projects) == 0 || projects == nil {
 		return noProject
@@ -59,26 +59,52 @@ func GetProjectName(t todo.Task) string {
 	return projects[0]
 }
 
-func (d *Database) GetProjectByName(name string) *Project {
-  for _, p := range d.Projects {
-    if p.ProjectName == name {
-      return p
-    }
-  }
-  return nil
-}
-
 func (d *Database) Reset() {
 	d.Projects = []*Project{
 		{
 			ProjectName: noProject,
-			TodoTasks:   todo.NewTaskList(),
+			TodoTasks:   todotxt.NewTaskList(),
 		},
 	}
 }
 
+func (d *Database) SaveFeeds() error {
+  tasklist := todotxt.NewTaskList()
+
+  for _, project := range d.Projects {
+    for _, task := range project.TodoTasks {
+      tasklist = append(tasklist, task)
+    }
+    for _, task := range project.DoingTasks {
+      tasklist = append(tasklist, task)
+    }
+    for _, task := range project.DoneTasks {
+      tasklist = append(tasklist, task)
+    }
+  }
+
+  if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
+    return err
+  }
+
+  fp, err := os.Create(ImportPath)
+  if err != nil {
+    return err
+  }
+  defer fp.Close()
+
+  for _, task := range tasklist {
+    _, err := fp.WriteString(task.String() + "\n")
+    if err != nil {
+      return err
+    }
+  }
+
+  return nil
+}
+
 func (d *Database) LoadFeeds() error {
-	tasklist, err := todo.LoadFromPath(ImportPath)
+	tasklist, err := todotxt.LoadFromPath(ImportPath)
 	if err != nil {
 		return err
 	}
@@ -86,7 +112,7 @@ func (d *Database) LoadFeeds() error {
 	d.Reset()
 
 	// Remove contexts from completed tasks
-	for _, task := range tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterByContext("doing")) {
+	for _, task := range tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterByContext("doing")) {
 		for j := range tasklist {
 			if tasklist[j].ID == task.ID {
 				tasklist[j] = removeContexts(task)
@@ -94,49 +120,56 @@ func (d *Database) LoadFeeds() error {
 		}
 	}
 
-	err = tasklist.Sort(todo.SortPriorityAsc, todo.SortDueDateAsc)
+	err = tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc)
 	if err != nil {
 		return err
 	}
 
-	projectList := map[string]int{}
-	projectCount := 0
+  const (
+    todo = "todo"
+    doing = "doing"
+    done = "done"
+  )
 
-	for _, todo := range tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing"))) {
-		project := GetProjectName(todo)
+  getTodoTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
+    return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+  }
 
-		if _, ok := projectList[project]; !ok {
-			projectList[project] = projectCount
-			projectCount++
-			d.Projects = append(d.Projects, &Project{ProjectName: project})
-		}
+  getDoingTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
+    return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing"))
+  }
 
-		d.Projects[projectList[project]].TodoTasks = append(d.Projects[projectList[project]].TodoTasks, todo)
-	}
+  getDoneTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
+    return tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+  }
 
-	for _, todo := range tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterByContext("doing")) {
-		project := GetProjectName(todo)
+  list := map[string]func(todotxt.TaskList) todotxt.TaskList{
+    todo: getTodoTasks,
+    doing: getDoingTasks,
+    done: getDoneTasks,
+  }
 
-		if _, ok := projectList[project]; !ok {
-			projectList[project] = projectCount
-			projectCount++
-			d.Projects = append(d.Projects, &Project{ProjectName: project})
-		}
+	projectList := map[string]*Project{}
+  for key, fn := range list {
+    for _, task := range fn(tasklist) {
+      projectName := GetProjectName(task)
+      project, ok := projectList[projectName]
+      if !ok {
+        d.Projects = append(d.Projects, &Project{ProjectName: projectName})
+        projectList[projectName] = d.Projects[len(d.Projects)-1]
+        project = d.Projects[len(d.Projects)-1]
+      }
 
-		d.Projects[projectList[project]].DoingTasks = append(d.Projects[projectList[project]].DoingTasks, todo)
-	}
-
-	for _, todo := range tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing"))) {
-		project := GetProjectName(todo)
-
-		if _, ok := projectList[project]; !ok {
-			projectList[project] = projectCount
-			projectCount++
-			d.Projects = append(d.Projects, &Project{ProjectName: project})
-		}
-
-		d.Projects[projectList[project]].DoneTasks = append(d.Projects[projectList[project]].DoneTasks, todo)
-	}
+      switch key {
+      case todo:
+        project.TodoTasks = append(project.TodoTasks, task)
+      case doing:
+        project.DoingTasks = append(project.DoingTasks, task)
+      case done:
+        project.DoneTasks = append(project.DoneTasks, task)
+      }
+    }
+  }
 
 	return nil
 }

@@ -1,5 +1,6 @@
-(A) あなるてんか +project_one
 (A) あなるほじり
 (A) ちんこいじり @doing
-x (A) どんこいじり @doing
+x (A) どんこいじり
+(A) あなるぽま +project_one
+(A) あなるてんか +project_two
 x (A) ぴんちゃん due:2018-12-31

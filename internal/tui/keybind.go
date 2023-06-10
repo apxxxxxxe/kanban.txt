@@ -48,7 +48,7 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 }
 
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.DB.GetProjectByName(t.ProjectPane.GetCurrentProjectName())
+	project := t.ProjectPane.GetCurrentProject()
 
 	f := func() {
 		// Move to DoingPane
@@ -56,8 +56,14 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			row, _ := t.TodoPane.GetSelection()
 			cell := t.TodoPane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todo.Task)
+      ref.Contexts = []string{"doing"}
 			project.TodoTasks.RemoveTaskByID(ref.ID)
 			project.DoingTasks.AddTask(ref)
+
+      if err := t.DB.SaveFeeds(); err != nil {
+        panic(err)
+      }
+
 			t.TodoPane.ResetCell(project.TodoTasks)
 			t.DoingPane.ResetCell(project.DoingTasks)
 			t.TodoPane.AdjustSelection()
@@ -92,7 +98,7 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.DB.GetProjectByName(t.ProjectPane.GetCurrentProjectName())
+	project := t.ProjectPane.GetCurrentProject()
 
 	switch event.Key() {
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
@@ -101,7 +107,13 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		cell := t.DoingPane.GetCell(row, 0)
 		ref, _ := cell.GetReference().(*todo.Task)
 		project.DoingTasks.RemoveTaskByID(ref.ID)
+    ref.Contexts = []string{}
 		project.TodoTasks.AddTask(ref)
+
+    if err := t.DB.SaveFeeds(); err != nil {
+      panic(err)
+    }
+
 		t.DoingPane.ResetCell(project.DoingTasks)
 		t.TodoPane.ResetCell(project.TodoTasks)
 		t.DoingPane.AdjustSelection()
@@ -114,9 +126,15 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			row, _ := t.DoingPane.GetSelection()
 			cell := t.DoingPane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todo.Task)
+      ref.Contexts = []string{}
 			ref.Complete()
 			project.DoingTasks.RemoveTaskByID(ref.ID)
 			project.DoneTasks.AddTask(ref)
+
+      if err := t.DB.SaveFeeds(); err != nil {
+        panic(err)
+      }
+
 			t.DoingPane.ResetCell(project.DoingTasks)
 			t.DonePane.ResetCell(project.DoneTasks)
 			t.DoingPane.AdjustSelection()
@@ -131,7 +149,7 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.DB.GetProjectByName(t.ProjectPane.GetCurrentProjectName())
+	project := t.ProjectPane.GetCurrentProject()
 
 	f := func() {
 		// Move to DoingPane
@@ -139,9 +157,15 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			row, _ := t.DonePane.GetSelection()
 			cell := t.DonePane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todo.Task)
+      ref.Contexts = []string{"doing"}
 			ref.Reopen()
 			project.DoneTasks.RemoveTaskByID(ref.ID)
 			project.DoingTasks.AddTask(ref)
+
+      if err := t.DB.SaveFeeds(); err != nil {
+        panic(err)
+      }
+
 			t.DonePane.ResetCell(project.DoneTasks)
 			t.DoingPane.ResetCell(project.DoingTasks)
 			t.DonePane.AdjustSelection()
@@ -170,7 +194,7 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.DB.GetProjectByName(t.ProjectPane.GetCurrentProjectName())
+	project := t.ProjectPane.GetCurrentProject()
 
 	switch event.Key() {
 	case tcell.KeyEnter:
@@ -193,6 +217,10 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 
 		project.TodoTasks.AddTask(task)
 		t.TodoPane.ResetCell(project.TodoTasks)
+
+    if err := t.DB.SaveFeeds(); err != nil {
+      panic(err)
+    }
 
 		t.InputWidget.SetText("")
 		t.Pages.HidePage(inputField)

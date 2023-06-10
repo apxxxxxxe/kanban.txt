@@ -8,24 +8,27 @@ import (
 )
 
 func (t *Tui) setSelectedFunc() {
-  t.ProjectPane.SetSelectionChangedFunc(t.projectPaneSelectionChangedFunc)
+	t.ProjectPane.SetSelectionChangedFunc(t.projectPaneSelectionChangedFunc)
 	t.TodoPane.SetSelectionChangedFunc(t.todoPaneSelectionChangedFunc)
 	t.DoingPane.SetSelectionChangedFunc(t.doingPaneSelectionChangedFunc)
 	t.DonePane.SetSelectionChangedFunc(t.donePaneSelectionChangedFunc)
 }
 
 func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
-	ref, ok := t.ProjectPane.GetCell(row, col).Reference.(*db.Project)
-	if ok {
-		project := t.DB.GetProjectByName(ref.ProjectName)
-		t.TodoPane.ResetCell(project.TodoTasks)
-		t.DoingPane.ResetCell(project.DoingTasks)
-		t.DonePane.ResetCell(project.DoneTasks)
+	project, ok := t.ProjectPane.GetCell(row, col).Reference.(*db.Project)
+	if !ok {
+		panic("invalid reference")
 	}
+
+	t.TodoPane.ResetCell(project.TodoTasks)
+	t.DoingPane.ResetCell(project.DoingTasks)
+	t.DonePane.ResetCell(project.DoneTasks)
+
 	description := [][]string{
-		{"todo", ref.TodoTasks.String()},
-		{"doing", ref.DoingTasks.String()},
-		{"done", ref.DoneTasks.String()},
+		{"name", project.ProjectName},
+		{"todo", project.TodoTasks.String()},
+		{"doing", project.DoingTasks.String()},
+		{"done", project.DoneTasks.String()},
 	}
 	t.Descript(description)
 }
