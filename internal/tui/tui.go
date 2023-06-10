@@ -3,18 +3,10 @@ package tui
 import (
 	"fmt"
 
-	todo "github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
 )
-
-type TuiInterface interface {
-	SortFeed()
-	SelectFeed()
-	Notify(text string)
-	Descript(info [][]string)
-}
 
 type Tui struct {
 	Config             *db.Config
@@ -30,7 +22,6 @@ type Tui struct {
 	HelpWidget         *tview.TextView
 	InputWidget        *InputBox
 	ColorWidget        *tview.Table
-	SelectingFeeds     []*todo.Task
 	LastFocusedWidget  *tview.Box
 	ConfirmationStatus rune
 	CurrentLeftTable   int
@@ -77,7 +68,6 @@ func NewTui() *Tui {
 		InfoWidget:         newTextView(infoWidgetTitle),
 		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
-		SelectingFeeds:     []*todo.Task{},
 		LastFocusedWidget:  nil,
 		ConfirmationStatus: defaultConfirmationStatus,
 		CurrentLeftTable:   enumTodoPane,
@@ -157,7 +147,7 @@ func (t *Tui) Help(help [][]string) {
 
 func (t *Tui) Run() error {
 
-	if err := t.DB.LoadFeeds(); err != nil {
+	if err := t.DB.LoadData(); err != nil {
 		return err
 	}
 

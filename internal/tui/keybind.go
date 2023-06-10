@@ -2,12 +2,13 @@ package tui
 
 import (
 	todo "github.com/1set/todotxt"
+	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/gdamore/tcell/v2"
 )
 
 func (t *Tui) setKeybind() {
 	t.App.SetInputCapture(t.AppInputCaptureFunc)
-  t.ProjectPane.SetInputCapture(t.projectPaneInputCaptureFunc)
+	t.ProjectPane.SetInputCapture(t.projectPaneInputCaptureFunc)
 	t.TodoPane.SetInputCapture(t.todoPaneInputCaptureFunc)
 	t.DoingPane.SetInputCapture(t.doingPaneInputCaptureFunc)
 	t.DonePane.SetInputCapture(t.donePaneInputCaptureFunc)
@@ -22,7 +23,17 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case 'n':
 		// New task
-		if t.App.GetFocus() != t.InputWidget {
+		switch t.App.GetFocus() {
+		case t.InputWidget:
+			return event
+		case t.ProjectPane:
+			t.InputWidget.SetTitle("New Project")
+			t.Pages.ShowPage(inputField)
+			t.App.SetFocus(t.InputWidget)
+			t.InputWidget.Mode = 'p'
+			return nil
+		default:
+			t.InputWidget.SetTitle("New Task")
 			t.Pages.ShowPage(inputField)
 			t.App.SetFocus(t.InputWidget)
 			t.InputWidget.Mode = 'n'
@@ -44,7 +55,7 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		t.App.SetFocus(t.TodoPane)
 	}
 
-  return event
+	return event
 }
 
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -56,13 +67,13 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			row, _ := t.TodoPane.GetSelection()
 			cell := t.TodoPane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todo.Task)
-      ref.Contexts = []string{"doing"}
+			ref.Contexts = []string{"doing"}
 			project.TodoTasks.RemoveTaskByID(ref.ID)
 			project.DoingTasks.AddTask(ref)
 
-      if err := t.DB.SaveFeeds(); err != nil {
-        panic(err)
-      }
+			if err := t.DB.SaveData(); err != nil {
+				panic(err)
+			}
 
 			t.TodoPane.ResetCell(project.TodoTasks)
 			t.DoingPane.ResetCell(project.DoingTasks)
@@ -76,7 +87,7 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
-  case 'h':
+	case 'h':
 		row, _ := t.ProjectPane.GetSelection()
 		n := t.ProjectPane.GetRowCount()
 		if row > n-1 {
@@ -107,12 +118,12 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		cell := t.DoingPane.GetCell(row, 0)
 		ref, _ := cell.GetReference().(*todo.Task)
 		project.DoingTasks.RemoveTaskByID(ref.ID)
-    ref.Contexts = []string{}
+		ref.Contexts = []string{}
 		project.TodoTasks.AddTask(ref)
 
-    if err := t.DB.SaveFeeds(); err != nil {
-      panic(err)
-    }
+		if err := t.DB.SaveData(); err != nil {
+			panic(err)
+		}
 
 		t.DoingPane.ResetCell(project.DoingTasks)
 		t.TodoPane.ResetCell(project.TodoTasks)
@@ -126,14 +137,14 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			row, _ := t.DoingPane.GetSelection()
 			cell := t.DoingPane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todo.Task)
-      ref.Contexts = []string{}
+			ref.Contexts = []string{}
 			ref.Complete()
 			project.DoingTasks.RemoveTaskByID(ref.ID)
 			project.DoneTasks.AddTask(ref)
 
-      if err := t.DB.SaveFeeds(); err != nil {
-        panic(err)
-      }
+			if err := t.DB.SaveData(); err != nil {
+				panic(err)
+			}
 
 			t.DoingPane.ResetCell(project.DoingTasks)
 			t.DonePane.ResetCell(project.DoneTasks)
@@ -157,14 +168,14 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			row, _ := t.DonePane.GetSelection()
 			cell := t.DonePane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todo.Task)
-      ref.Contexts = []string{"doing"}
+			ref.Contexts = []string{"doing"}
 			ref.Reopen()
 			project.DoneTasks.RemoveTaskByID(ref.ID)
 			project.DoingTasks.AddTask(ref)
 
-      if err := t.DB.SaveFeeds(); err != nil {
-        panic(err)
-      }
+			if err := t.DB.SaveData(); err != nil {
+				panic(err)
+			}
 
 			t.DonePane.ResetCell(project.DoneTasks)
 			t.DoingPane.ResetCell(project.DoingTasks)
@@ -199,28 +210,40 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	switch event.Key() {
 	case tcell.KeyEnter:
 		input := t.InputWidget.GetText()
-		task, err := todo.ParseTask(input)
-		if err != nil {
-			t.Notify(err.Error(), true)
-			return nil
-		}
-
-		// remove context "doing"
-		for i, context := range task.Contexts {
-			if context == "doing" {
-				task.Contexts = append(task.Contexts[:i], task.Contexts[i+1:]...)
-				break
+		switch t.InputWidget.Mode {
+		case 'n':
+			// New Task
+			task, err := todo.ParseTask(input)
+			if err != nil {
+				t.Notify(err.Error(), true)
+				return nil
 			}
+
+			// add current project
+			task.Projects = []string{project.ProjectName}
+
+			// remove context "doing"
+			for i, context := range task.Contexts {
+				if context == "doing" {
+					task.Contexts = append(task.Contexts[:i], task.Contexts[i+1:]...)
+					break
+				}
+			}
+
+			task.Reopen()
+
+			project.TodoTasks.AddTask(task)
+			t.TodoPane.ResetCell(project.TodoTasks)
+
+			if err := t.DB.SaveData(); err != nil {
+				panic(err)
+			}
+
+		case 'p':
+			// New Project
+			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
+			t.ProjectPane.ResetCell(t.DB.Projects)
 		}
-
-		task.Reopen()
-
-		project.TodoTasks.AddTask(task)
-		t.TodoPane.ResetCell(project.TodoTasks)
-
-    if err := t.DB.SaveFeeds(); err != nil {
-      panic(err)
-    }
 
 		t.InputWidget.SetText("")
 		t.Pages.HidePage(inputField)

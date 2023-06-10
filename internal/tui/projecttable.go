@@ -44,7 +44,7 @@ func (t *ProjectTable) setCell(p *db.Project) *tview.TableCell {
 
 	// SelectionChangedFuncを発火する
 	if maxRow == 0 {
-		t.Select(t.GetSelection())
+		t.Select(0, 0)
 	}
 
 	return cell

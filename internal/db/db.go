@@ -68,7 +68,7 @@ func (d *Database) Reset() {
 	}
 }
 
-func (d *Database) SaveFeeds() error {
+func (d *Database) SaveData() error {
   tasklist := todotxt.NewTaskList()
 
   for _, project := range d.Projects {
@@ -103,7 +103,7 @@ func (d *Database) SaveFeeds() error {
   return nil
 }
 
-func (d *Database) LoadFeeds() error {
+func (d *Database) LoadData() error {
 	tasklist, err := todotxt.LoadFromPath(ImportPath)
 	if err != nil {
 		return err
