@@ -65,10 +65,20 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	return event
 }
 
-func (t *Tui) deleteTask(taskList todo.TaskList, pane *TodoTable) {
-	row, _ := pane.GetSelection()
-	cell := pane.GetCell(row, 0)
+func (t *Tui) deleteTask(pane *TodoTable) {
+	cell := pane.GetCell(pane.GetSelection())
 	ref, _ := cell.GetReference().(*todo.Task)
+
+	var taskList *todo.TaskList
+	switch pane.GetTitle() {
+	case todoPaneTitle:
+		taskList = &t.ProjectPane.GetCurrentProject().TodoTasks
+	case doingPaneTitle:
+		taskList = &t.ProjectPane.GetCurrentProject().DoingTasks
+	case donePaneTitle:
+		taskList = &t.ProjectPane.GetCurrentProject().DoneTasks
+	}
+
 	if err := taskList.RemoveTaskByID(ref.ID); err != nil {
 		panic(err)
 	}
@@ -95,8 +105,8 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 				panic(err)
 			}
 
-			t.TodoPane.ResetCell(project.TodoTasks)
-			t.DoingPane.ResetCell(project.DoingTasks)
+			t.TodoPane.ResetCell(&project.TodoTasks)
+			t.DoingPane.ResetCell(&project.DoingTasks)
 			t.TodoPane.AdjustSelection()
 		}
 	}
@@ -109,7 +119,7 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
-			t.deleteTask(project.TodoTasks, t.TodoPane)
+			t.deleteTask(t.TodoPane)
 		} else {
 			t.ConfirmationStatus = todoDelete
 			t.Notify("Press d again to delete todo task", false)
@@ -153,15 +163,15 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			panic(err)
 		}
 
-		t.DoingPane.ResetCell(project.DoingTasks)
-		t.TodoPane.ResetCell(project.TodoTasks)
+		t.DoingPane.ResetCell(&project.DoingTasks)
+		t.TodoPane.ResetCell(&project.TodoTasks)
 		t.DoingPane.AdjustSelection()
 	}
 
 	switch event.Rune() {
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
-			t.deleteTask(project.DoingTasks, t.DoingPane)
+			t.deleteTask(t.DoingPane)
 		} else {
 			t.ConfirmationStatus = doingDelete
 			t.Notify("Press d again to delete doing task", false)
@@ -182,8 +192,8 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 				panic(err)
 			}
 
-			t.DoingPane.ResetCell(project.DoingTasks)
-			t.DonePane.ResetCell(project.DoneTasks)
+			t.DoingPane.ResetCell(&project.DoingTasks)
+			t.DonePane.ResetCell(&project.DoneTasks)
 			t.DoingPane.AdjustSelection()
 		}
 	case 'h':
@@ -213,8 +223,8 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 				panic(err)
 			}
 
-			t.DonePane.ResetCell(project.DoneTasks)
-			t.DoingPane.ResetCell(project.DoingTasks)
+			t.DonePane.ResetCell(&project.DoneTasks)
+			t.DoingPane.ResetCell(&project.DoingTasks)
 			t.DonePane.AdjustSelection()
 		}
 	}
@@ -227,7 +237,7 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
-			t.deleteTask(project.DoingTasks, t.DoingPane)
+			t.deleteTask(t.DoingPane)
 		} else {
 			t.ConfirmationStatus = doneDelete
 			t.Notify("Press d again to delete done task", false)
@@ -277,7 +287,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			task.Reopen()
 
 			project.TodoTasks.AddTask(task)
-			t.TodoPane.ResetCell(project.TodoTasks)
+			t.TodoPane.ResetCell(&project.TodoTasks)
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)

@@ -20,9 +20,9 @@ func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
 		panic("invalid reference")
 	}
 
-	t.TodoPane.ResetCell(project.TodoTasks)
-	t.DoingPane.ResetCell(project.DoingTasks)
-	t.DonePane.ResetCell(project.DoneTasks)
+	t.TodoPane.ResetCell(&project.TodoTasks)
+	t.DoingPane.ResetCell(&project.DoingTasks)
+	t.DonePane.ResetCell(&project.DoneTasks)
 
 	description := [][]string{
 		{"name", project.ProjectName},

@@ -23,9 +23,9 @@ func (t *TodoTable) AdjustSelection() {
 	}
 }
 
-func (t *TodoTable) ResetCell(tasklist todo.TaskList) {
+func (t *TodoTable) ResetCell(tasklist *todo.TaskList) {
 	t.Clear()
-	for _, task := range tasklist {
+	for _, task := range *tasklist {
 		t.setCell(task)
 	}
 }

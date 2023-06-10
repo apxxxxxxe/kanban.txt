@@ -1,6 +1,11 @@
-(A) あなるほじり
-(A) ちんこいじり @doing
-x (A) どんこいじり
 (A) あなるぽま +project_one
 (A) あなるてんか +project_two
+(A) ちんこいじり @doing
+(A) どんこいじり @doing
 x (A) ぴんちゃん due:2018-12-31
+x 2023-06-10 surfaces.txtの流用について +thumbelina-shell
+x 2023-06-10 私服にmustselectつける +thumbelina-shell
+x 2023-06-10 白椅子ベースで黒と茶の再作成 +thumbelina-shell
+x 2023-06-10 手足の爪の色塗り +thumbelina-shell
+x 2023-06-10 手の手直し…？ +thumbelina-shell
+x 2023-06-10 ex汗の動作確認 +thumbelina-shell

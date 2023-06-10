@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/1set/todotxt"
 )
@@ -69,38 +70,38 @@ func (d *Database) Reset() {
 }
 
 func (d *Database) SaveData() error {
-  tasklist := todotxt.NewTaskList()
+	tasklist := todotxt.NewTaskList()
 
-  for _, project := range d.Projects {
-    for _, task := range project.TodoTasks {
-      tasklist = append(tasklist, task)
-    }
-    for _, task := range project.DoingTasks {
-      tasklist = append(tasklist, task)
-    }
-    for _, task := range project.DoneTasks {
-      tasklist = append(tasklist, task)
-    }
-  }
+	for _, project := range d.Projects {
+		for _, task := range project.TodoTasks {
+			tasklist = append(tasklist, task)
+		}
+		for _, task := range project.DoingTasks {
+			tasklist = append(tasklist, task)
+		}
+		for _, task := range project.DoneTasks {
+			tasklist = append(tasklist, task)
+		}
+	}
 
-  if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
-    return err
-  }
+	if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
+		return err
+	}
 
-  fp, err := os.Create(ImportPath)
-  if err != nil {
-    return err
-  }
-  defer fp.Close()
+	fp, err := os.Create(ImportPath)
+	if err != nil {
+		return err
+	}
+	defer fp.Close()
 
-  for _, task := range tasklist {
-    _, err := fp.WriteString(task.String() + "\n")
-    if err != nil {
-      return err
-    }
-  }
+	for _, task := range tasklist {
+		_, err := fp.WriteString(task.String() + "\n")
+		if err != nil {
+			return err
+		}
+	}
 
-  return nil
+	return nil
 }
 
 func (d *Database) LoadData() error {
@@ -125,51 +126,56 @@ func (d *Database) LoadData() error {
 		return err
 	}
 
-  const (
-    todo = "todo"
-    doing = "doing"
-    done = "done"
-  )
+	const (
+		todo  = "todo"
+		doing = "doing"
+		done  = "done"
+	)
 
-  getTodoTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
-    return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
-  }
+	getTodoTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
+		return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+	}
 
-  getDoingTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
-    return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing"))
-  }
+	getDoingTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
+		return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing"))
+	}
 
-  getDoneTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
-    return tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
-  }
+	getDoneTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
+		return tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+	}
 
-  list := map[string]func(todotxt.TaskList) todotxt.TaskList{
-    todo: getTodoTasks,
-    doing: getDoingTasks,
-    done: getDoneTasks,
-  }
+	list := map[string]func(todotxt.TaskList) todotxt.TaskList{
+		todo:  getTodoTasks,
+		doing: getDoingTasks,
+		done:  getDoneTasks,
+	}
 
 	projectList := map[string]*Project{}
-  for key, fn := range list {
-    for _, task := range fn(tasklist) {
-      projectName := GetProjectName(task)
-      project, ok := projectList[projectName]
-      if !ok {
-        d.Projects = append(d.Projects, &Project{ProjectName: projectName})
-        projectList[projectName] = d.Projects[len(d.Projects)-1]
-        project = d.Projects[len(d.Projects)-1]
-      }
+	for key, fn := range list {
+		for _, task := range fn(tasklist) {
+			projectName := GetProjectName(task)
+			project, ok := projectList[projectName]
+			if !ok {
+				d.Projects = append(d.Projects, &Project{ProjectName: projectName})
+				projectList[projectName] = d.Projects[len(d.Projects)-1]
+				project = d.Projects[len(d.Projects)-1]
+			}
 
-      switch key {
-      case todo:
-        project.TodoTasks = append(project.TodoTasks, task)
-      case doing:
-        project.DoingTasks = append(project.DoingTasks, task)
-      case done:
-        project.DoneTasks = append(project.DoneTasks, task)
-      }
-    }
-  }
+			switch key {
+			case todo:
+				project.TodoTasks = append(project.TodoTasks, task)
+			case doing:
+				project.DoingTasks = append(project.DoingTasks, task)
+			case done:
+				project.DoneTasks = append(project.DoneTasks, task)
+			}
+		}
+	}
+
+	// sort projects(tasks are already sorted)
+	sort.Slice(d.Projects, func(i, j int) bool {
+		return d.Projects[i].ProjectName < d.Projects[j].ProjectName
+	})
 
 	return nil
 }
