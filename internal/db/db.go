@@ -12,6 +12,7 @@ const (
 	TodaysFeedTitle = "Today's Articles"
 	SavePrefixGroup = "g_"
 	SavePrefixFeed  = "f_"
+	noProject       = "NoName"
 )
 
 var (
@@ -22,18 +23,14 @@ var (
 )
 
 type Database struct {
-	TodoTasks  todo.TaskList
-	DoingTasks todo.TaskList
-	DoneTasks  todo.TaskList
+	Projects []*Project
 }
 
-func NewDB() *Database {
-	db := &Database{
-		TodoTasks:  todo.TaskList{},
-		DoingTasks: todo.TaskList{},
-		DoneTasks:  todo.TaskList{},
-	}
-	return db
+type Project struct {
+	ProjectName string
+	TodoTasks   todo.TaskList
+	DoingTasks  todo.TaskList
+	DoneTasks   todo.TaskList
 }
 
 func getDataPath() string {
@@ -43,7 +40,7 @@ func getDataPath() string {
 	return wd
 }
 
-func RemoveContexts(t todo.Task) todo.Task {
+func removeContexts(t todo.Task) todo.Task {
 	raw := ""
 	for _, s := range t.Segments() {
 		if s.Type != todo.SegmentContext {
@@ -54,17 +51,45 @@ func RemoveContexts(t todo.Task) todo.Task {
 	return *parsed
 }
 
+func GetProjectName(t todo.Task) string {
+	projects := t.Projects
+	if len(projects) == 0 || projects == nil {
+		return noProject
+	}
+	return projects[0]
+}
+
+func (d *Database) GetProjectByName(name string) *Project {
+  for _, p := range d.Projects {
+    if p.ProjectName == name {
+      return p
+    }
+  }
+  return nil
+}
+
+func (d *Database) Reset() {
+	d.Projects = []*Project{
+		{
+			ProjectName: noProject,
+			TodoTasks:   todo.NewTaskList(),
+		},
+	}
+}
+
 func (d *Database) LoadFeeds() error {
 	tasklist, err := todo.LoadFromPath(ImportPath)
 	if err != nil {
 		return err
 	}
 
+	d.Reset()
+
 	// Remove contexts from completed tasks
 	for _, task := range tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterByContext("doing")) {
 		for j := range tasklist {
 			if tasklist[j].ID == task.ID {
-				tasklist[j] = RemoveContexts(task)
+				tasklist[j] = removeContexts(task)
 			}
 		}
 	}
@@ -74,9 +99,44 @@ func (d *Database) LoadFeeds() error {
 		return err
 	}
 
-	d.TodoTasks = tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing")))
-	d.DoingTasks = tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterByContext("doing"))
-	d.DoneTasks = tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing")))
+	projectList := map[string]int{}
+	projectCount := 0
+
+	for _, todo := range tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing"))) {
+		project := GetProjectName(todo)
+
+		if _, ok := projectList[project]; !ok {
+			projectList[project] = projectCount
+			projectCount++
+			d.Projects = append(d.Projects, &Project{ProjectName: project})
+		}
+
+		d.Projects[projectList[project]].TodoTasks = append(d.Projects[projectList[project]].TodoTasks, todo)
+	}
+
+	for _, todo := range tasklist.Filter(todo.FilterNotCompleted).Filter(todo.FilterByContext("doing")) {
+		project := GetProjectName(todo)
+
+		if _, ok := projectList[project]; !ok {
+			projectList[project] = projectCount
+			projectCount++
+			d.Projects = append(d.Projects, &Project{ProjectName: project})
+		}
+
+		d.Projects[projectList[project]].DoingTasks = append(d.Projects[projectList[project]].DoingTasks, todo)
+	}
+
+	for _, todo := range tasklist.Filter(todo.FilterCompleted).Filter(todo.FilterNot(todo.FilterByContext("doing"))) {
+		project := GetProjectName(todo)
+
+		if _, ok := projectList[project]; !ok {
+			projectList[project] = projectCount
+			projectCount++
+			d.Projects = append(d.Projects, &Project{ProjectName: project})
+		}
+
+		d.Projects[projectList[project]].DoneTasks = append(d.Projects[projectList[project]].DoneTasks, todo)
+	}
 
 	return nil
 }

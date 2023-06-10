@@ -21,6 +21,7 @@ type Tui struct {
 	DB                 *db.Database
 	App                *tview.Application
 	Pages              *tview.Pages
+	ProjectPane        *ProjectTable
 	TodoPane           *TodoTable
 	DoingPane          *TodoTable
 	DonePane           *TodoTable
@@ -43,6 +44,7 @@ const (
 	mainPage                  = "MainPage"
 	keymapPage                = "KeymapPage"
 	defaultConfirmationStatus = '0'
+	projectPaneTitle          = "Project"
 	todoPaneTitle             = "Todo"
 	doingPaneTitle            = "Doing"
 	donePaneTitle             = "Done"
@@ -64,9 +66,10 @@ func NewTui() *Tui {
 
 	tui := &Tui{
 		Config:             db.LoadOrNewConfig(),
-		DB:                 db.NewDB(),
+		DB:                 &db.Database{},
 		App:                tview.NewApplication(),
 		Pages:              tview.NewPages(),
+		ProjectPane:        &ProjectTable{newTable(projectPaneTitle)},
 		TodoPane:           &TodoTable{newTable(todoPaneTitle)},
 		DoingPane:          &TodoTable{newTable(doingPaneTitle)},
 		DonePane:           &TodoTable{newTable(donePaneTitle)},
@@ -81,16 +84,19 @@ func NewTui() *Tui {
 		IsLoading:          false,
 	}
 
-	mainFlex := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(tui.TodoPane, 0, 1, false).
-			AddItem(tui.DoingPane, 0, 1, false).
-			AddItem(tui.DonePane, 0, 1, false),
-			0, 3, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(tui.DescriptionWidget, 0, 2, false).
-			AddItem(tui.HelpWidget, 0, 1, false),
-			0, 1, false)
+	mainFlex := tview.NewFlex().SetDirection(tview.FlexColumn).
+		AddItem(tui.ProjectPane, 0, 1, false).
+		AddItem(
+			tview.NewFlex().SetDirection(tview.FlexRow).
+				AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+					AddItem(tui.TodoPane, 0, 1, false).
+					AddItem(tui.DoingPane, 0, 1, false).
+					AddItem(tui.DonePane, 0, 1, false),
+					0, 3, false).
+				AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+					AddItem(tui.DescriptionWidget, 0, 2, false).
+					AddItem(tui.HelpWidget, 0, 1, false),
+					0, 1, false), 0, 3, false)
 
 	inputFlex := tview.NewFlex().
 		AddItem(nil, 0, 1, false).
@@ -155,15 +161,14 @@ func (t *Tui) Run() error {
 		return err
 	}
 
-	t.TodoPane.ResetCell(t.DB.TodoTasks)
-	t.DoingPane.ResetCell(t.DB.DoingTasks)
-	t.DonePane.ResetCell(t.DB.DoneTasks)
+  t.ProjectPane.ResetCell(t.DB.Projects)
+  t.ProjectPane.Select(0, 0) // len(t.DB.Projects) is usually > 0
 
 	t.doingPaneBlurFunc()
 	t.donePaneBlurFunc()
 	t.descriptionWidgetBlurFunc()
 
-	t.setFocus(t.TodoPane.Box)
+	t.setFocus(t.ProjectPane.Box)
 
 	if err := t.App.Run(); err != nil {
 		t.App.Stop()

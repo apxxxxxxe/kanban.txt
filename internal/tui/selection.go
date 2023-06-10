@@ -4,12 +4,30 @@ import (
 	"time"
 
 	todo "github.com/1set/todotxt"
+	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 )
 
 func (t *Tui) setSelectedFunc() {
+  t.ProjectPane.SetSelectionChangedFunc(t.projectPaneSelectionChangedFunc)
 	t.TodoPane.SetSelectionChangedFunc(t.todoPaneSelectionChangedFunc)
 	t.DoingPane.SetSelectionChangedFunc(t.doingPaneSelectionChangedFunc)
 	t.DonePane.SetSelectionChangedFunc(t.donePaneSelectionChangedFunc)
+}
+
+func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
+	ref, ok := t.ProjectPane.GetCell(row, col).Reference.(*db.Project)
+	if ok {
+		project := t.DB.GetProjectByName(ref.ProjectName)
+		t.TodoPane.ResetCell(project.TodoTasks)
+		t.DoingPane.ResetCell(project.DoingTasks)
+		t.DonePane.ResetCell(project.DoneTasks)
+	}
+	description := [][]string{
+		{"todo", ref.TodoTasks.String()},
+		{"doing", ref.DoingTasks.String()},
+		{"done", ref.DoneTasks.String()},
+	}
+	t.Descript(description)
 }
 
 func (t *Tui) todoPaneSelectionChangedFunc(row, col int) {
