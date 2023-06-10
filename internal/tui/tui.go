@@ -23,7 +23,7 @@ type Tui struct {
 	InputWidget        *InputBox
 	ColorWidget        *tview.Table
 	LastFocusedWidget  *tview.Box
-	ConfirmationStatus rune
+	ConfirmationStatus int
 	CurrentLeftTable   int
 	IsLoading          bool
 }
@@ -85,7 +85,7 @@ func NewTui() *Tui {
 					0, 3, false).
 				AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 					AddItem(tui.DescriptionWidget, 0, 2, false).
-					AddItem(tui.HelpWidget, 0, 1, false),
+					AddItem(tui.InfoWidget, 0, 1, false),
 					0, 1, false), 0, 3, false)
 
 	inputFlex := tview.NewFlex().

@@ -6,6 +6,13 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+const (
+	defaultStatus = iota
+	todoDelete
+	doingDelete
+	doneDelete
+)
+
 func (t *Tui) setKeybind() {
 	t.App.SetInputCapture(t.AppInputCaptureFunc)
 	t.ProjectPane.SetInputCapture(t.projectPaneInputCaptureFunc)
@@ -58,6 +65,19 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	return event
 }
 
+func (t *Tui) deleteTask(taskList todo.TaskList, pane *TodoTable) {
+	row, _ := pane.GetSelection()
+	cell := pane.GetCell(row, 0)
+	ref, _ := cell.GetReference().(*todo.Task)
+	if err := taskList.RemoveTaskByID(ref.ID); err != nil {
+		panic(err)
+	}
+	if err := t.DB.SaveData(); err != nil {
+		panic(err)
+	}
+	pane.ResetCell(taskList)
+}
+
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	project := t.ProjectPane.GetCurrentProject()
 
@@ -87,6 +107,14 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
+	case 'd':
+		if t.ConfirmationStatus == todoDelete {
+			t.deleteTask(project.TodoTasks, t.TodoPane)
+		} else {
+			t.ConfirmationStatus = todoDelete
+			t.Notify("Press d again to delete todo task", false)
+		}
+		return event
 	case 'h':
 		row, _ := t.ProjectPane.GetSelection()
 		n := t.ProjectPane.GetRowCount()
@@ -131,6 +159,14 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
+	case 'd':
+		if t.ConfirmationStatus == doingDelete {
+			t.deleteTask(project.DoingTasks, t.DoingPane)
+		} else {
+			t.ConfirmationStatus = doingDelete
+			t.Notify("Press d again to delete doing task", false)
+		}
+		return event
 	case ' ':
 		// Move to DonePane
 		if t.DoingPane.GetRowCount() > 0 {
@@ -189,6 +225,14 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
+	case 'd':
+		if t.ConfirmationStatus == doneDelete {
+			t.deleteTask(project.DoingTasks, t.DoingPane)
+		} else {
+			t.ConfirmationStatus = doneDelete
+			t.Notify("Press d again to delete done task", false)
+		}
+		return event
 	case ' ':
 		f()
 		// or Move to Archive
