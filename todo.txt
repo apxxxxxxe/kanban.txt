@@ -1,8 +1,15 @@
-(A) ちんこいじり @doing
-(A) どんこいじり @doing
-(A) あなるぽま +project_one
-(A) あなるてんか +project_two
-x (A) ぴんちゃん due:2018-12-31
+todo.txtをconfig/以下に保存するように +programming
+taskの編集方法を考える +programming
+保存時にソートする +programming
+ukaing: restart処理の実装 +programming
+kanban: Description +programming
+kanban: doneは灰色に +programming
+kanban: project間の移動を可能にする +programming
+taskの編集後にはソートする +programming
+projectのrenameができるように +programming
+TaskListをTaskReferencesに置き換え @doing +programming
+fishingデータセットの調査 +research
+叩き台的プログラム(メール送信)の試作 +research
 x 2023-06-10 surfaces.txtの流用について +thumbelina-shell
 x 2023-06-10 私服にmustselectつける +thumbelina-shell
 x 2023-06-10 白椅子ベースで黒と茶の再作成 +thumbelina-shell

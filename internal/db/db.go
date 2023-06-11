@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -24,14 +25,15 @@ var (
 )
 
 type Database struct {
-	Projects []*Project
+	WholeTasks TaskReferences
+	Projects   []*Project
 }
 
 type Project struct {
 	ProjectName string
-	TodoTasks   todotxt.TaskList
-	DoingTasks  todotxt.TaskList
-	DoneTasks   todotxt.TaskList
+	TodoTasks   TaskReferences
+	DoingTasks  TaskReferences
+	DoneTasks   TaskReferences
 }
 
 func getDataPath() string {
@@ -41,15 +43,14 @@ func getDataPath() string {
 	return wd
 }
 
-func removeContexts(t todotxt.Task) todotxt.Task {
+func removeContexts(t *todotxt.Task) {
 	raw := ""
 	for _, s := range t.Segments() {
 		if s.Type != todotxt.SegmentContext {
 			raw += s.Display + " "
 		}
 	}
-	parsed, _ := todotxt.ParseTask(raw)
-	return *parsed
+	t, _ = todotxt.ParseTask(raw)
 }
 
 func GetProjectName(t todotxt.Task) string {
@@ -64,7 +65,7 @@ func (d *Database) Reset() {
 	d.Projects = []*Project{
 		{
 			ProjectName: noProject,
-			TodoTasks:   todotxt.NewTaskList(),
+			TodoTasks:   TaskReferences{},
 		},
 	}
 }
@@ -74,13 +75,13 @@ func (d *Database) SaveData() error {
 
 	for _, project := range d.Projects {
 		for _, task := range project.TodoTasks {
-			tasklist = append(tasklist, task)
+			tasklist = append(tasklist, *task)
 		}
 		for _, task := range project.DoingTasks {
-			tasklist = append(tasklist, task)
+			tasklist = append(tasklist, *task)
 		}
 		for _, task := range project.DoneTasks {
-			tasklist = append(tasklist, task)
+			tasklist = append(tasklist, *task)
 		}
 	}
 
@@ -105,25 +106,40 @@ func (d *Database) SaveData() error {
 }
 
 func (d *Database) LoadData() error {
-	tasklist, err := todotxt.LoadFromPath(ImportPath)
+	var tmpList todotxt.TaskList
+	var err error
+	tmpList, err = todotxt.LoadFromPath(ImportPath)
 	if err != nil {
 		return err
 	}
 
-	d.Reset()
+	taskList := TaskReferences{}
+	for i := range tmpList {
+		taskList = append(taskList, &tmpList[i])
+	}
 
 	// Remove contexts from completed tasks
-	for _, task := range tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterByContext("doing")) {
-		for j := range tasklist {
-			if tasklist[j].ID == task.ID {
-				tasklist[j] = removeContexts(task)
+	for _, task := range tmpList.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterByContext("doing")) {
+		for j := range taskList {
+			if taskList[j].ID == task.ID {
+				removeContexts(&task)
 			}
 		}
 	}
 
-	err = tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc)
-	if err != nil {
+	if err = taskList.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
 		return err
+	}
+
+	d.Reset()
+	d.WholeTasks = taskList
+
+	return nil
+}
+
+func (d *Database) RefreshProjects() error {
+	if len(d.WholeTasks) == 0 {
+		return errors.New("task list is empty")
 	}
 
 	const (
@@ -132,19 +148,19 @@ func (d *Database) LoadData() error {
 		done  = "done"
 	)
 
-	getTodoTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
-		return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+	getTodoTasks := func(tasklist TaskReferences) TaskReferences {
+		return *tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
 	}
 
-	getDoingTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
-		return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing"))
+	getDoingTasks := func(tasklist TaskReferences) TaskReferences {
+		return *tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing"))
 	}
 
-	getDoneTasks := func(tasklist todotxt.TaskList) todotxt.TaskList {
-		return tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+	getDoneTasks := func(tasklist TaskReferences) TaskReferences {
+		return *tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
 	}
 
-	list := map[string]func(todotxt.TaskList) todotxt.TaskList{
+	list := map[string]func(TaskReferences) TaskReferences{
 		todo:  getTodoTasks,
 		doing: getDoingTasks,
 		done:  getDoneTasks,
@@ -152,8 +168,8 @@ func (d *Database) LoadData() error {
 
 	projectList := map[string]*Project{}
 	for key, fn := range list {
-		for _, task := range fn(tasklist) {
-			projectName := GetProjectName(task)
+		for _, task := range fn(d.WholeTasks) {
+			projectName := GetProjectName(*task)
 			project, ok := projectList[projectName]
 			if !ok {
 				d.Projects = append(d.Projects, &Project{ProjectName: projectName})
@@ -178,4 +194,9 @@ func (d *Database) LoadData() error {
 	})
 
 	return nil
+}
+
+func (d *Database) RemoveTask(task *todotxt.Task) {
+	d.WholeTasks.RemoveTask(task)
+	d.RefreshProjects()
 }

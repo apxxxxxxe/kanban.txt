@@ -1,7 +1,7 @@
 package tui
 
 import (
-	todo "github.com/1set/todotxt"
+	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/gdamore/tcell/v2"
 )
@@ -65,10 +65,7 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 }
 
 func (t *Tui) deleteTask(pane *TodoTable) {
-	cell := pane.GetCell(pane.GetSelection())
-	ref, _ := cell.GetReference().(*todo.Task)
-
-	var taskList *todo.TaskList
+	var taskList *db.TaskReferences
 	switch pane.GetTitle() {
 	case todoPaneTitle:
 		taskList = &t.ProjectPane.GetCurrentProject().TodoTasks
@@ -78,13 +75,12 @@ func (t *Tui) deleteTask(pane *TodoTable) {
 		taskList = &t.ProjectPane.GetCurrentProject().DoneTasks
 	}
 
-	if err := taskList.RemoveTaskByID(ref.ID); err != nil {
-		panic(err)
-	}
+	ref, _ := pane.GetCell(pane.GetSelection()).GetReference().(*todotxt.Task)
+	taskList.RemoveTask(ref)
 	if err := t.DB.SaveData(); err != nil {
 		panic(err)
 	}
-	pane.ResetCell(taskList)
+	pane.ResetCell(*taskList)
 }
 
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -95,17 +91,17 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if t.TodoPane.GetRowCount() > 0 {
 			row, _ := t.TodoPane.GetSelection()
 			cell := t.TodoPane.GetCell(row, 0)
-			ref, _ := cell.GetReference().(*todo.Task)
+			ref, _ := cell.GetReference().(*todotxt.Task)
 			ref.Contexts = []string{"doing"}
-			project.TodoTasks.RemoveTaskByID(ref.ID)
+			project.TodoTasks.RemoveTask(ref)
 			project.DoingTasks.AddTask(ref)
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
 			}
 
-			t.TodoPane.ResetCell(&project.TodoTasks)
-			t.DoingPane.ResetCell(&project.DoingTasks)
+			t.TodoPane.ResetCell(project.TodoTasks)
+			t.DoingPane.ResetCell(project.DoingTasks)
 			t.TodoPane.AdjustSelection()
 		}
 	}
@@ -159,8 +155,8 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		// Move to TodoPane
 		row, _ := t.DoingPane.GetSelection()
 		cell := t.DoingPane.GetCell(row, 0)
-		ref, _ := cell.GetReference().(*todo.Task)
-		project.DoingTasks.RemoveTaskByID(ref.ID)
+		ref, _ := cell.GetReference().(*todotxt.Task)
+		project.DoingTasks.RemoveTask(ref)
 		ref.Contexts = []string{}
 		project.TodoTasks.AddTask(ref)
 
@@ -168,8 +164,8 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			panic(err)
 		}
 
-		t.DoingPane.ResetCell(&project.DoingTasks)
-		t.TodoPane.ResetCell(&project.TodoTasks)
+		t.DoingPane.ResetCell(project.DoingTasks)
+		t.TodoPane.ResetCell(project.TodoTasks)
 		t.DoingPane.AdjustSelection()
 	}
 
@@ -193,18 +189,18 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if t.DoingPane.GetRowCount() > 0 {
 			row, _ := t.DoingPane.GetSelection()
 			cell := t.DoingPane.GetCell(row, 0)
-			ref, _ := cell.GetReference().(*todo.Task)
+			ref, _ := cell.GetReference().(*todotxt.Task)
 			ref.Contexts = []string{}
 			ref.Complete()
-			project.DoingTasks.RemoveTaskByID(ref.ID)
+			project.DoingTasks.RemoveTask(ref)
 			project.DoneTasks.AddTask(ref)
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
 			}
 
-			t.DoingPane.ResetCell(&project.DoingTasks)
-			t.DonePane.ResetCell(&project.DoneTasks)
+			t.DoingPane.ResetCell(project.DoingTasks)
+			t.DonePane.ResetCell(project.DoneTasks)
 			t.DoingPane.AdjustSelection()
 		}
 	case 'h':
@@ -224,18 +220,18 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if t.DonePane.GetRowCount() > 0 {
 			row, _ := t.DonePane.GetSelection()
 			cell := t.DonePane.GetCell(row, 0)
-			ref, _ := cell.GetReference().(*todo.Task)
+			ref, _ := cell.GetReference().(*todotxt.Task)
 			ref.Contexts = []string{"doing"}
 			ref.Reopen()
-			project.DoneTasks.RemoveTaskByID(ref.ID)
+			project.DoneTasks.RemoveTask(ref)
 			project.DoingTasks.AddTask(ref)
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
 			}
 
-			t.DonePane.ResetCell(&project.DoneTasks)
-			t.DoingPane.ResetCell(&project.DoingTasks)
+			t.DonePane.ResetCell(project.DoneTasks)
+			t.DoingPane.ResetCell(project.DoingTasks)
 			t.DonePane.AdjustSelection()
 		}
 	}
@@ -290,7 +286,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		switch t.InputWidget.Mode {
 		case 'n':
 			// New Task
-			task, err := todo.ParseTask(input)
+			task, err := todotxt.ParseTask(input)
 			if err != nil {
 				t.Notify(err.Error(), true)
 				return nil
@@ -310,7 +306,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			task.Reopen()
 
 			project.TodoTasks.AddTask(task)
-			t.TodoPane.ResetCell(&project.TodoTasks)
+			t.TodoPane.ResetCell(project.TodoTasks)
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
 			}

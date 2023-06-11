@@ -145,8 +145,10 @@ func (t *Tui) Help(help [][]string) {
 }
 
 func (t *Tui) Run() error {
-
 	if err := t.DB.LoadData(); err != nil {
+		return err
+	}
+	if err := t.DB.RefreshProjects(); err != nil {
 		return err
 	}
 

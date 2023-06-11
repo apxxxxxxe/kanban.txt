@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"time"
 
 	todo "github.com/1set/todotxt"
@@ -20,12 +21,14 @@ func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
 		panic("invalid reference")
 	}
 
-	t.TodoPane.ResetCell(&project.TodoTasks)
-	t.DoingPane.ResetCell(&project.DoingTasks)
-	t.DonePane.ResetCell(&project.DoneTasks)
+	t.TodoPane.ResetCell(project.TodoTasks)
+	t.DoingPane.ResetCell(project.DoingTasks)
+	t.DonePane.ResetCell(project.DoneTasks)
 
 	description := [][]string{
+		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.WholeTasks))},
 		{"name", project.ProjectName},
+		{"len", fmt.Sprintf("%d", len(project.TodoTasks)+len(project.DoingTasks)+len(project.DoneTasks))},
 		{"todo", project.TodoTasks.String()},
 		{"doing", project.DoingTasks.String()},
 		{"done", project.DoneTasks.String()},
