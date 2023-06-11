@@ -10,6 +10,7 @@ artworks_toolで7zをCommandで実行するように +programming
 x 2023-06-11 TaskListをTaskReferencesに置き換え +programming
 x 2023-06-11 todo.txtをconfig/以下に保存するように +programming
 x 2023-06-12 NewTaskの妙な挙動の調査・解決 +programming
+x 2023-06-12 doneできるように +programming
 fishingデータセットの調査 +research
 叩き台的プログラム(メール送信)の試作 +research
 x 2023-06-10 surfaces.txtの流用について +thumbelina-shell

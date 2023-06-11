@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
+	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -12,16 +13,6 @@ const (
 	doingDelete
 	doneDelete
 )
-
-func (t *Tui) AddTask(task *todotxt.Task) {
-	t.DB.WholeTasks.AddTask(task)
-	t.refreshProjects()
-}
-
-func (t *Tui) RemoveTask(task *todotxt.Task) {
-	t.DB.WholeTasks.RemoveTask(task)
-	t.refreshProjects()
-}
 
 func (t *Tui) setKeybind() {
 	t.App.SetInputCapture(t.AppInputCaptureFunc)
@@ -74,55 +65,19 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	return event
 }
 
-/*
-func (t *Tui) deleteTask(pane *TodoTable) {
-	var taskList *db.TaskReferences
-
-	project := t.ProjectPane.GetCurrentProject()
-	if project == nil {
-		return
-	}
-
-	switch pane.GetTitle() {
-	case todoPaneTitle:
-		taskList = &project.TodoTasks
-	case doingPaneTitle:
-		taskList = &project.DoingTasks
-	case donePaneTitle:
-		taskList = &project.DoneTasks
-	}
-
-	ref, ok := pane.GetCell(pane.GetSelection()).GetReference().(*todotxt.Task)
-	if !ok {
-		panic("invalid reference")
-	}
-	taskList.RemoveTask(ref)
-	if err := t.DB.SaveData(); err != nil {
-		panic(err)
-	}
-	pane.ResetCell(*taskList)
-}
-*/
-
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	f := func() {
 		// Move to DoingPane
 		project := t.ProjectPane.GetCurrentProject()
 		if t.TodoPane.GetRowCount() > 0 && project != nil {
-			row, _ := t.TodoPane.GetSelection()
-			cell := t.TodoPane.GetCell(row, 0)
-			ref, _ := cell.GetReference().(*todotxt.Task)
-			ref.Contexts = []string{"doing"}
-
-			db.ToDoing(ref)
-			t.DB.RefreshProjects()
-
-			if err := t.DB.SaveData(); err != nil {
-				panic(err)
+			ref, ok := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
+			if !ok {
+				panic("todoPaneInputCaptureFunc: ref is not *todotxt.Task")
 			}
 
-			t.TodoPane.ResetCell(project.TodoTasks)
-			t.DoingPane.ResetCell(project.DoingTasks)
+			tsk.ToDoing(ref)
+			t.refreshProjects()
+
 			t.TodoPane.AdjustSelection()
 		}
 	}
@@ -136,8 +91,14 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
 			if t.TodoPane.GetRowCount() > 0 {
-				task, _ := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
-				t.RemoveTask(task)
+				task, ok := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
+				if !ok {
+					panic("todoPaneInputCaptureFunc: ref is not *todotxt.Task")
+				}
+
+				t.DB.WholeTasks.RemoveTask(task)
+				t.refreshProjects()
+
 				t.Notify("deleted todo task", false)
 			} else {
 				t.Notify("No todo task here", true)
@@ -170,24 +131,17 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.ProjectPane.GetCurrentProject()
-
 	switch event.Key() {
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		// Move to TodoPane
-		row, _ := t.DoingPane.GetSelection()
-		cell := t.DoingPane.GetCell(row, 0)
-		ref, _ := cell.GetReference().(*todotxt.Task)
-
-		db.ToTodo(ref)
-		t.DB.RefreshProjects()
-
-		if err := t.DB.SaveData(); err != nil {
-			panic(err)
+		ref, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+		if !ok {
+			panic("doingPaneInputCaptureFunc: ref is not *todotxt.Task")
 		}
 
-		t.DoingPane.ResetCell(project.DoingTasks)
-		t.TodoPane.ResetCell(project.TodoTasks)
+		tsk.ToTodo(ref)
+		t.refreshProjects()
+
 		t.DoingPane.AdjustSelection()
 	}
 
@@ -195,8 +149,14 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
 			if t.DoingPane.GetRowCount() > 0 {
-        task, _ := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
-        t.RemoveTask(task)
+				task, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+				if !ok {
+					panic("doingPaneInputCaptureFunc: ref is not *todotxt.Task")
+				}
+
+				t.DB.WholeTasks.RemoveTask(task)
+				t.refreshProjects()
+
 				t.Notify("Deleted doing task", false)
 			} else {
 				t.Notify("No doing task here", true)
@@ -210,21 +170,14 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case ' ':
 		// Move to DonePane
 		if t.DoingPane.GetRowCount() > 0 {
-			row, _ := t.DoingPane.GetSelection()
-			cell := t.DoingPane.GetCell(row, 0)
-			ref, _ := cell.GetReference().(*todotxt.Task)
-			ref.Contexts = []string{}
-			ref.Complete()
-
-			db.ToDone(ref)
-			t.DB.RefreshProjects()
-
-			if err := t.DB.SaveData(); err != nil {
-				panic(err)
+			ref, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+			if !ok {
+				panic("doingPaneInputCaptureFunc: ref is not *todotxt.Task")
 			}
 
-			t.DoingPane.ResetCell(project.DoingTasks)
-			t.DonePane.ResetCell(project.DoneTasks)
+			tsk.ToDone(ref)
+			t.refreshProjects()
+
 			t.DoingPane.AdjustSelection()
 		}
 	case 'h':
@@ -237,26 +190,17 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.ProjectPane.GetCurrentProject()
-
 	f := func() {
 		// Move to DoingPane
 		if t.DonePane.GetRowCount() > 0 {
-			row, _ := t.DonePane.GetSelection()
-			cell := t.DonePane.GetCell(row, 0)
-			ref, _ := cell.GetReference().(*todotxt.Task)
-			ref.Contexts = []string{"doing"}
-			ref.Reopen()
-
-			db.ToDoing(ref)
-			t.DB.RefreshProjects()
-
-			if err := t.DB.SaveData(); err != nil {
-				panic(err)
+			ref, ok := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
+			if !ok {
+				panic("donePaneInputCaptureFunc: ref is not *todotxt.Task")
 			}
 
-			t.DonePane.ResetCell(project.DoneTasks)
-			t.DoingPane.ResetCell(project.DoingTasks)
+			tsk.ToDoing(ref)
+			t.refreshProjects()
+
 			t.DonePane.AdjustSelection()
 		}
 	}
@@ -270,8 +214,14 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
 			if t.DonePane.GetRowCount() > 0 {
-        task, _ := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
-        t.RemoveTask(task)
+				task, ok := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
+				if !ok {
+					panic("donePaneInputCaptureFunc: ref is not *todotxt.Task")
+				}
+
+				t.DB.WholeTasks.RemoveTask(task)
+				t.refreshProjects()
+
 				t.Notify("Deleted done task", false)
 			} else {
 				t.Notify("No done task here", true)
@@ -328,7 +278,10 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 					break
 				}
 			}
-			t.AddTask(task)
+
+			t.DB.WholeTasks.AddTask(task)
+			t.refreshProjects()
+
 		case 'p':
 			// New Project
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
