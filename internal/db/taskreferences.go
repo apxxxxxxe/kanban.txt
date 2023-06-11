@@ -18,9 +18,9 @@ func (tr *TaskReferences) AddTask(t *todotxt.Task) {
 
 func (tr *TaskReferences) RemoveTask(t *todotxt.Task) {
 	newList := NewTaskReferences()
-	for _, task := range *tr {
+	for i, task := range *tr {
 		if task.String() != t.String() {
-			newList.AddTask(task)
+			newList.AddTask((*tr)[i])
 		}
 	}
 	*tr = newList
@@ -70,9 +70,9 @@ func (tr *TaskReferences) Sort(flag todotxt.TaskSortByType, flags ...todotxt.Tas
 }
 
 func (tr *TaskReferences) String() string {
-  result := ""
-  for _, task := range *tr {
-    result += task.Todo + "\n"
-  }
-  return result
+	result := ""
+	for _, task := range *tr {
+		result += task.Todo + "\n"
+	}
+	return result
 }

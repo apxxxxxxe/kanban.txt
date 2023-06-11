@@ -12,7 +12,7 @@ type ProjectTable struct {
 func (t *ProjectTable) GetCurrentProject() *db.Project {
 	p, ok := t.GetCell(t.GetSelection()).GetReference().(*db.Project)
 	if !ok {
-		panic("invalid reference")
+		return nil
 	}
 	return p
 }

@@ -39,7 +39,7 @@ func (t *TodoTable) setCell(f *todo.Task) *tview.TableCell {
 		cell := t.GetCell(i, 0)
 		ref, ok := cell.GetReference().(*todo.Task)
 		if ok {
-			if ref.ID == f.ID {
+			if ref.String() == f.String() {
 				targetRow = i
 				break
 			}

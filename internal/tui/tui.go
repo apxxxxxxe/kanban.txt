@@ -125,6 +125,21 @@ func (t *Tui) Descript(desc [][]string) {
 	}
 }
 
+func (t *Tui) refreshProjects() {
+	if err := t.DB.RefreshProjects(); err != nil {
+		t.Notify(err.Error(), true)
+	}
+	t.ProjectPane.ResetCell(t.DB.Projects)
+  row, col := t.ProjectPane.GetSelection()
+  if row >= t.ProjectPane.GetRowCount() {
+    row = t.ProjectPane.GetRowCount() - 1
+  }
+  if col >= t.ProjectPane.GetColumnCount() {
+    col = t.ProjectPane.GetColumnCount() - 1
+  }
+	t.ProjectPane.Select(row, col)
+}
+
 func (t *Tui) Notify(m string, red bool) {
 	if red {
 		m = "[#ff0000::b]" + m

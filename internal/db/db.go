@@ -37,10 +37,8 @@ type Project struct {
 }
 
 func getDataPath() string {
-	// configDir, _ := os.UserConfigDir()
-	// return filepath.Join(configDir, dataRoot)
-	wd, _ := os.Getwd()
-	return wd
+	configDir, _ := os.UserConfigDir()
+	return filepath.Join(configDir, dataRoot)
 }
 
 func removeContexts(t *todotxt.Task) {
@@ -72,17 +70,8 @@ func (d *Database) Reset() {
 
 func (d *Database) SaveData() error {
 	tasklist := todotxt.NewTaskList()
-
-	for _, project := range d.Projects {
-		for _, task := range project.TodoTasks {
-			tasklist = append(tasklist, *task)
-		}
-		for _, task := range project.DoingTasks {
-			tasklist = append(tasklist, *task)
-		}
-		for _, task := range project.DoneTasks {
-			tasklist = append(tasklist, *task)
-		}
+	for i := range d.WholeTasks {
+		tasklist = append(tasklist, *d.WholeTasks[i])
 	}
 
 	if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
@@ -106,10 +95,10 @@ func (d *Database) SaveData() error {
 }
 
 func (d *Database) LoadData() error {
-	var tmpList todotxt.TaskList
 	var err error
+	tmpList := todotxt.TaskList{}
 	tmpList, err = todotxt.LoadFromPath(ImportPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
@@ -138,8 +127,10 @@ func (d *Database) LoadData() error {
 }
 
 func (d *Database) RefreshProjects() error {
+	d.Projects = []*Project{{ProjectName: noProject}}
+
 	if len(d.WholeTasks) == 0 {
-		return errors.New("task list is empty")
+		return nil
 	}
 
 	const (
@@ -193,10 +184,43 @@ func (d *Database) RefreshProjects() error {
 		return d.Projects[i].ProjectName < d.Projects[j].ProjectName
 	})
 
+	if err := d.SaveData(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (d *Database) RemoveTask(task *todotxt.Task) {
-	d.WholeTasks.RemoveTask(task)
-	d.RefreshProjects()
+func ToTodo(task *todotxt.Task) {
+	for i, c := range task.Contexts {
+		if c == "doing" {
+			task.Contexts = append(task.Contexts[:i], task.Contexts[i+1:]...)
+			break
+		}
+	}
+	task.Reopen()
+}
+
+func ToDoing(task *todotxt.Task) {
+	hasDoing := false
+	for _, c := range task.Contexts {
+		if c == "doing" {
+			hasDoing = true
+			break
+		}
+	}
+	if !hasDoing {
+		task.Contexts = append(task.Contexts, "doing")
+	}
+	task.Reopen()
+}
+
+func ToDone(task *todotxt.Task) {
+	for i, c := range task.Contexts {
+		if c == "doing" {
+			task.Contexts = append(task.Contexts[:i], task.Contexts[i+1:]...)
+			break
+		}
+	}
+	task.Complete()
 }

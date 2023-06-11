@@ -13,6 +13,16 @@ const (
 	doneDelete
 )
 
+func (t *Tui) AddTask(task *todotxt.Task) {
+	t.DB.WholeTasks.AddTask(task)
+	t.refreshProjects()
+}
+
+func (t *Tui) RemoveTask(task *todotxt.Task) {
+	t.DB.WholeTasks.RemoveTask(task)
+	t.refreshProjects()
+}
+
 func (t *Tui) setKeybind() {
 	t.App.SetInputCapture(t.AppInputCaptureFunc)
 	t.ProjectPane.SetInputCapture(t.projectPaneInputCaptureFunc)
@@ -64,37 +74,48 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	return event
 }
 
+/*
 func (t *Tui) deleteTask(pane *TodoTable) {
 	var taskList *db.TaskReferences
-	switch pane.GetTitle() {
-	case todoPaneTitle:
-		taskList = &t.ProjectPane.GetCurrentProject().TodoTasks
-	case doingPaneTitle:
-		taskList = &t.ProjectPane.GetCurrentProject().DoingTasks
-	case donePaneTitle:
-		taskList = &t.ProjectPane.GetCurrentProject().DoneTasks
+
+	project := t.ProjectPane.GetCurrentProject()
+	if project == nil {
+		return
 	}
 
-	ref, _ := pane.GetCell(pane.GetSelection()).GetReference().(*todotxt.Task)
+	switch pane.GetTitle() {
+	case todoPaneTitle:
+		taskList = &project.TodoTasks
+	case doingPaneTitle:
+		taskList = &project.DoingTasks
+	case donePaneTitle:
+		taskList = &project.DoneTasks
+	}
+
+	ref, ok := pane.GetCell(pane.GetSelection()).GetReference().(*todotxt.Task)
+	if !ok {
+		panic("invalid reference")
+	}
 	taskList.RemoveTask(ref)
 	if err := t.DB.SaveData(); err != nil {
 		panic(err)
 	}
 	pane.ResetCell(*taskList)
 }
+*/
 
 func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
-	project := t.ProjectPane.GetCurrentProject()
-
 	f := func() {
 		// Move to DoingPane
-		if t.TodoPane.GetRowCount() > 0 {
+		project := t.ProjectPane.GetCurrentProject()
+		if t.TodoPane.GetRowCount() > 0 && project != nil {
 			row, _ := t.TodoPane.GetSelection()
 			cell := t.TodoPane.GetCell(row, 0)
 			ref, _ := cell.GetReference().(*todotxt.Task)
 			ref.Contexts = []string{"doing"}
-			project.TodoTasks.RemoveTask(ref)
-			project.DoingTasks.AddTask(ref)
+
+			db.ToDoing(ref)
+			t.DB.RefreshProjects()
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
@@ -115,7 +136,8 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
 			if t.TodoPane.GetRowCount() > 0 {
-				t.deleteTask(t.TodoPane)
+				task, _ := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
+				t.RemoveTask(task)
 				t.Notify("deleted todo task", false)
 			} else {
 				t.Notify("No todo task here", true)
@@ -156,9 +178,9 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		row, _ := t.DoingPane.GetSelection()
 		cell := t.DoingPane.GetCell(row, 0)
 		ref, _ := cell.GetReference().(*todotxt.Task)
-		project.DoingTasks.RemoveTask(ref)
-		ref.Contexts = []string{}
-		project.TodoTasks.AddTask(ref)
+
+		db.ToTodo(ref)
+		t.DB.RefreshProjects()
 
 		if err := t.DB.SaveData(); err != nil {
 			panic(err)
@@ -173,7 +195,8 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
 			if t.DoingPane.GetRowCount() > 0 {
-				t.deleteTask(t.DoingPane)
+        task, _ := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+        t.RemoveTask(task)
 				t.Notify("Deleted doing task", false)
 			} else {
 				t.Notify("No doing task here", true)
@@ -192,8 +215,9 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			ref, _ := cell.GetReference().(*todotxt.Task)
 			ref.Contexts = []string{}
 			ref.Complete()
-			project.DoingTasks.RemoveTask(ref)
-			project.DoneTasks.AddTask(ref)
+
+			db.ToDone(ref)
+			t.DB.RefreshProjects()
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
@@ -223,8 +247,9 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			ref, _ := cell.GetReference().(*todotxt.Task)
 			ref.Contexts = []string{"doing"}
 			ref.Reopen()
-			project.DoneTasks.RemoveTask(ref)
-			project.DoingTasks.AddTask(ref)
+
+			db.ToDoing(ref)
+			t.DB.RefreshProjects()
 
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
@@ -245,7 +270,8 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
 			if t.DonePane.GetRowCount() > 0 {
-				t.deleteTask(t.DonePane)
+        task, _ := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
+        t.RemoveTask(task)
 				t.Notify("Deleted done task", false)
 			} else {
 				t.Notify("No done task here", true)
@@ -302,15 +328,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 					break
 				}
 			}
-
-			task.Reopen()
-
-			project.TodoTasks.AddTask(task)
-			t.TodoPane.ResetCell(project.TodoTasks)
-			if err := t.DB.SaveData(); err != nil {
-				panic(err)
-			}
-
+			t.AddTask(task)
 		case 'p':
 			// New Project
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})

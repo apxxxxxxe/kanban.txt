@@ -16,6 +16,10 @@ func (t *Tui) setSelectedFunc() {
 }
 
 func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
+	if t.ProjectPane.GetRowCount() == 0 {
+		return
+	}
+
 	project, ok := t.ProjectPane.GetCell(row, col).Reference.(*db.Project)
 	if !ok {
 		panic("invalid reference")
@@ -65,10 +69,10 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 		}
 		description := [][]string{
 			// {"ID", strconv.Itoa(task.ID)},
-			// {"Completed", strconv.FormatBool(task.Completed)},
-			{"Priority", task.Priority},
-			{"Contexts", contexts},
 			{"Projects", projects},
+			{"Priority", task.Priority},
+			{"Title", task.Todo},
+			{"Contexts", contexts},
 			{"DueDate", timeToStr(task.DueDate)},
 			{"CompletedDate", timeToStr(task.CompletedDate)},
 			{"CreatedDate", timeToStr(task.CreatedDate)},
