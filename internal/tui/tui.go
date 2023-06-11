@@ -29,20 +29,19 @@ type Tui struct {
 }
 
 const (
-	descriptionField          = "descPopup"
-	inputField                = "InputPopup"
-	colorTable                = "ColorTablePopup"
-	mainPage                  = "MainPage"
-	keymapPage                = "KeymapPage"
-	defaultConfirmationStatus = '0'
-	projectPaneTitle          = "Project"
-	todoPaneTitle             = "Todo"
-	doingPaneTitle            = "Doing"
-	donePaneTitle             = "Done"
-	descriptionWidgetTitle    = "Description"
-	helpWidgetTitle           = "Help"
-	infoWidgetTitle           = "Info"
-	colorWidgetTitle          = "Color"
+	descriptionField       = "descPopup"
+	inputField             = "InputPopup"
+	colorTable             = "ColorTablePopup"
+	mainPage               = "MainPage"
+	keymapPage             = "KeymapPage"
+	projectPaneTitle       = "Project"
+	todoPaneTitle          = "Todo"
+	doingPaneTitle         = "Doing"
+	donePaneTitle          = "Done"
+	descriptionWidgetTitle = "Description"
+	helpWidgetTitle        = "Help"
+	infoWidgetTitle        = "Info"
+	colorWidgetTitle       = "Color"
 )
 
 const (
@@ -69,7 +68,7 @@ func NewTui() *Tui {
 		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
 		LastFocusedWidget:  nil,
-		ConfirmationStatus: defaultConfirmationStatus,
+		ConfirmationStatus: defaultStatus,
 		CurrentLeftTable:   enumTodoPane,
 		IsLoading:          false,
 	}
@@ -110,9 +109,9 @@ func NewTui() *Tui {
 	return tui
 }
 
-func (t *Tui) setFocus(p *tview.Box) {
-	t.LastFocusedWidget = p
-	t.App.SetFocus(p)
+func (t *Tui) setFocus(b *tview.Box) {
+	t.LastFocusedWidget = b
+	t.App.SetFocus(b)
 }
 
 func (t *Tui) Descript(desc [][]string) {
@@ -151,8 +150,8 @@ func (t *Tui) Run() error {
 		return err
 	}
 
-  t.ProjectPane.ResetCell(t.DB.Projects)
-  t.ProjectPane.Select(0, 0) // len(t.DB.Projects) is usually > 0
+	t.ProjectPane.ResetCell(t.DB.Projects)
+	t.ProjectPane.Select(0, 0) // len(t.DB.Projects) is usually > 0
 
 	t.doingPaneBlurFunc()
 	t.donePaneBlurFunc()

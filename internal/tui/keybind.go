@@ -23,32 +23,31 @@ func (t *Tui) setKeybind() {
 }
 
 func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
+	if t.InputWidget.HasFocus() {
+		return event
+	}
+
 	switch event.Rune() {
 	case 'q':
 		// Quit
 		t.App.Stop()
 		return nil
+	case 'p':
+		t.InputWidget.SetTitle("New Project")
+		t.Pages.ShowPage(inputField)
+		t.App.SetFocus(t.InputWidget.Box)
+		t.InputWidget.Mode = 'p'
+		return nil
 	case 'n':
 		// New task
-		switch t.App.GetFocus() {
-		case t.InputWidget:
-			return event
-		case t.ProjectPane:
-			t.InputWidget.SetTitle("New Project")
-			t.Pages.ShowPage(inputField)
-			t.App.SetFocus(t.InputWidget)
-			t.InputWidget.Mode = 'p'
-			return nil
-		default:
-			t.InputWidget.SetTitle("New Task")
-			t.Pages.ShowPage(inputField)
-			t.App.SetFocus(t.InputWidget)
-			t.InputWidget.Mode = 'n'
-			return nil
-		}
+		t.InputWidget.SetTitle("New Task")
+		t.Pages.ShowPage(inputField)
+		t.App.SetFocus(t.InputWidget.Box)
+		t.InputWidget.Mode = 'n'
+		return nil
+	default:
+		return event
 	}
-
-	return event
 }
 
 func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -59,7 +58,7 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		if row > n-1 {
 			t.TodoPane.Select(n-1, 0)
 		}
-		t.App.SetFocus(t.TodoPane)
+		t.setFocus(t.TodoPane.Box)
 	}
 
 	return event
@@ -119,7 +118,13 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
-			t.deleteTask(t.TodoPane)
+			if t.TodoPane.GetRowCount() > 0 {
+				t.deleteTask(t.TodoPane)
+				t.Notify("deleted todo task", false)
+			} else {
+				t.Notify("No todo task here", true)
+			}
+			t.ConfirmationStatus = defaultStatus
 		} else {
 			t.ConfirmationStatus = todoDelete
 			t.Notify("Press d again to delete todo task", false)
@@ -131,14 +136,14 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if row > n-1 {
 			t.ProjectPane.Select(n-1, 0)
 		}
-		t.App.SetFocus(t.ProjectPane)
+		t.setFocus(t.ProjectPane.Box)
 	case 'l':
 		row, _ := t.DoingPane.GetSelection()
 		n := t.DoingPane.GetRowCount()
 		if row > n-1 {
 			t.DoingPane.Select(n-1, 0)
 		}
-		t.App.SetFocus(t.DoingPane)
+		t.setFocus(t.DoingPane.Box)
 	case ' ':
 		f()
 	}
@@ -171,7 +176,13 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
-			t.deleteTask(t.DoingPane)
+			if t.DoingPane.GetRowCount() > 0 {
+				t.deleteTask(t.DoingPane)
+				t.Notify("Deleted doing task", false)
+			} else {
+				t.Notify("No doing task here", true)
+			}
+			t.ConfirmationStatus = defaultStatus
 		} else {
 			t.ConfirmationStatus = doingDelete
 			t.Notify("Press d again to delete doing task", false)
@@ -197,9 +208,9 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			t.DoingPane.AdjustSelection()
 		}
 	case 'h':
-		t.App.SetFocus(t.TodoPane)
+		t.setFocus(t.TodoPane.Box)
 	case 'l':
-		t.App.SetFocus(t.DonePane)
+		t.setFocus(t.DonePane.Box)
 	}
 
 	return event
@@ -237,7 +248,13 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
-			t.deleteTask(t.DoingPane)
+			if t.DonePane.GetRowCount() > 0 {
+				t.deleteTask(t.DonePane)
+				t.Notify("Deleted done task", false)
+			} else {
+				t.Notify("No done task here", true)
+			}
+			t.ConfirmationStatus = defaultStatus
 		} else {
 			t.ConfirmationStatus = doneDelete
 			t.Notify("Press d again to delete done task", false)
@@ -252,7 +269,7 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if row > n-1 {
 			t.DoingPane.Select(n-1, 0)
 		}
-		t.App.SetFocus(t.DoingPane)
+		t.setFocus(t.DoingPane.Box)
 	}
 
 	return event
@@ -262,6 +279,12 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	project := t.ProjectPane.GetCurrentProject()
 
 	switch event.Key() {
+	case tcell.KeyEscape:
+		t.Pages.HidePage(inputField)
+		t.setFocus(t.LastFocusedWidget)
+		t.InputWidget.SetText("")
+		t.InputWidget.Mode = ' '
+		return nil
 	case tcell.KeyEnter:
 		input := t.InputWidget.GetText()
 		switch t.InputWidget.Mode {
@@ -291,17 +314,15 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
 			}
-			t.Pages.HidePage(inputField)
-			t.App.SetFocus(t.TodoPane)
 
 		case 'p':
 			// New Project
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
 			t.ProjectPane.ResetCell(t.DB.Projects)
-			t.Pages.HidePage(inputField)
-			t.App.SetFocus(t.ProjectPane)
 		}
 
+		t.Pages.HidePage(inputField)
+		t.setFocus(t.LastFocusedWidget)
 		t.InputWidget.SetText("")
 		t.InputWidget.Mode = ' '
 		return nil

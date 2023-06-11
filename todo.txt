@@ -3,7 +3,6 @@
 (A) あなるぽま +project_one
 (A) あなるてんか +project_two
 x (A) ぴんちゃん due:2018-12-31
-amam +thumbelina-shell
 x 2023-06-10 surfaces.txtの流用について +thumbelina-shell
 x 2023-06-10 私服にmustselectつける +thumbelina-shell
 x 2023-06-10 白椅子ベースで黒と茶の再作成 +thumbelina-shell
