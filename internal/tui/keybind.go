@@ -288,20 +288,21 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 
 			project.TodoTasks.AddTask(task)
 			t.TodoPane.ResetCell(&project.TodoTasks)
-
 			if err := t.DB.SaveData(); err != nil {
 				panic(err)
 			}
+			t.Pages.HidePage(inputField)
+			t.App.SetFocus(t.TodoPane)
 
 		case 'p':
 			// New Project
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
 			t.ProjectPane.ResetCell(t.DB.Projects)
+			t.Pages.HidePage(inputField)
+			t.App.SetFocus(t.ProjectPane)
 		}
 
 		t.InputWidget.SetText("")
-		t.Pages.HidePage(inputField)
-		t.App.SetFocus(t.TodoPane)
 		t.InputWidget.Mode = ' '
 		return nil
 	}
