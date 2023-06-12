@@ -53,6 +53,51 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		t.App.SetFocus(t.InputWidget.Box)
 		t.InputWidget.Mode = 'R'
 		return nil
+	case 'P':
+		// add or increment priority
+		var task *todotxt.Task = nil
+		var ok bool
+		if t.TodoPane.HasFocus() {
+			task, ok = t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
+			if !ok {
+				panic("AppInputCaptureFunc: ref is not *todotxt.Task")
+			}
+		} else if t.DoingPane.HasFocus() {
+			task, ok = t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+			if !ok {
+				panic("AppInputCaptureFunc: ref is not *todotxt.Task")
+			}
+		} else if t.DonePane.HasFocus() {
+			task, ok = t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
+			if !ok {
+				panic("AppInputCaptureFunc: ref is not *todotxt.Task")
+			}
+		}
+		if task != nil {
+			if task.Priority == "" {
+				task.Priority = priorityA
+			} else {
+				priorities := []string{
+					priorityA,
+					priorityB,
+					priorityC,
+					priorityD,
+					priorityE,
+				}
+				for i, p := range priorities {
+					if task.Priority == p {
+						if i == len(priorities)-1 {
+							task.Priority = ""
+						} else {
+							task.Priority = priorities[i+1]
+						}
+						break
+					}
+				}
+			}
+			t.refreshProjects()
+		}
+		return nil
 	default:
 		return event
 	}

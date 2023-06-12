@@ -138,6 +138,7 @@ func (t *Tui) refreshProjects() {
 		col = t.ProjectPane.GetColumnCount() - 1
 	}
 	t.ProjectPane.Select(row, col)
+	t.App.SetFocus(t.App.GetFocus())
 }
 
 func (t *Tui) Notify(m string, red bool) {

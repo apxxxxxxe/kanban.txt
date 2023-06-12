@@ -127,6 +127,11 @@ func (d *Database) LoadData() error {
 }
 
 func (d *Database) RefreshProjects() error {
+	// sort whole tasks
+	if err := d.WholeTasks.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
+		return err
+	}
+
 	d.Projects = []*Project{{ProjectName: noProject}}
 
 	if len(d.WholeTasks) == 0 {
@@ -179,7 +184,7 @@ func (d *Database) RefreshProjects() error {
 		}
 	}
 
-	// sort projects(tasks are already sorted)
+	// sort projects
 	sort.Slice(d.Projects, func(i, j int) bool {
 		return d.Projects[i].ProjectName < d.Projects[j].ProjectName
 	})

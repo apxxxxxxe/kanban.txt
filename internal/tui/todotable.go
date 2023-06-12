@@ -9,6 +9,19 @@ import (
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 )
 
+const (
+	priorityA = "A"
+	priorityB = "B"
+	priorityC = "C"
+	priorityD = "D"
+	priorityE = "E"
+	colorA    = tcell.ColorRed
+	colorB    = tcell.ColorOrange
+	colorC    = tcell.ColorYellow
+	colorD    = tcell.ColorGreen
+	colorE    = tcell.ColorBlue
+)
+
 type TodoTable struct {
 	*tview.Table
 }
@@ -48,6 +61,21 @@ func (t *TodoTable) setCell(f *todo.Task) *tview.TableCell {
 	}
 
 	cell := tview.NewTableCell(f.Todo).SetReference(f)
+
+	if f.HasPriority() {
+		switch f.Priority {
+		case priorityA:
+			cell.SetTextColor(colorA)
+		case priorityB:
+			cell.SetTextColor(colorB)
+		case priorityC:
+			cell.SetTextColor(colorC)
+		case priorityD:
+			cell.SetTextColor(colorD)
+		case priorityE:
+			cell.SetTextColor(colorE)
+		}
+	}
 
 	if f.Completed {
 		cell.SetTextColor(tcell.ColorGray)
