@@ -39,8 +39,8 @@ func (tr *TaskReferences) Filter(pred todotxt.Predicate, preads ...todotxt.Predi
 			}
 		}
 	}
-	*tr = result
-	return tr
+
+	return &result
 }
 
 func (tr *TaskReferences) PredicateNot(pred todotxt.Predicate) todotxt.Predicate {

@@ -2,6 +2,7 @@ package tui
 
 import (
 	todo "github.com/1set/todotxt"
+	"github.com/gdamore/tcell/v2"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
 
@@ -46,8 +47,11 @@ func (t *TodoTable) setCell(f *todo.Task) *tview.TableCell {
 		}
 	}
 
-	cell := tview.NewTableCell(f.Todo).
-		SetReference(f)
+	cell := tview.NewTableCell(f.Todo).SetReference(f)
+
+	if f.Completed {
+		cell.SetTextColor(tcell.ColorGray)
+	}
 
 	t.SetCell(targetRow, 0, cell)
 

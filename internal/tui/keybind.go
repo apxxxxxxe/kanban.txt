@@ -46,6 +46,13 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		t.App.SetFocus(t.InputWidget.Box)
 		t.InputWidget.Mode = 'n'
 		return nil
+	case 'R':
+		// Rename Current Project
+		t.InputWidget.SetTitle("Rename Project")
+		t.Pages.ShowPage(inputField)
+		t.App.SetFocus(t.InputWidget.Box)
+		t.InputWidget.Mode = 'R'
+		return nil
 	default:
 		return event
 	}
@@ -286,6 +293,14 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			// New Project
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
 			t.ProjectPane.ResetCell(t.DB.Projects)
+
+		case 'R':
+			// Rename Project
+			taskList := t.DB.WholeTasks.Filter(todotxt.FilterByProject(project.ProjectName))
+			for _, task := range *taskList {
+				task.Projects = []string{input}
+			}
+			t.refreshProjects()
 		}
 
 		t.Pages.HidePage(inputField)

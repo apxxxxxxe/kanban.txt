@@ -129,14 +129,14 @@ func (t *Tui) refreshProjects() {
 	if err := t.DB.RefreshProjects(); err != nil {
 		t.Notify(err.Error(), true)
 	}
+	row, col := t.ProjectPane.GetSelection()
 	t.ProjectPane.ResetCell(t.DB.Projects)
-  row, col := t.ProjectPane.GetSelection()
-  if row >= t.ProjectPane.GetRowCount() {
-    row = t.ProjectPane.GetRowCount() - 1
-  }
-  if col >= t.ProjectPane.GetColumnCount() {
-    col = t.ProjectPane.GetColumnCount() - 1
-  }
+	if row >= t.ProjectPane.GetRowCount() {
+		row = t.ProjectPane.GetRowCount() - 1
+	}
+	if col >= t.ProjectPane.GetColumnCount() {
+		col = t.ProjectPane.GetColumnCount() - 1
+	}
 	t.ProjectPane.Select(row, col)
 }
 
