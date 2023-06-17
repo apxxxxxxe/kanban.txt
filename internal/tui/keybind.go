@@ -21,6 +21,7 @@ func (t *Tui) setKeybind() {
 	t.DoingPane.SetInputCapture(t.doingPaneInputCaptureFunc)
 	t.DonePane.SetInputCapture(t.donePaneInputCaptureFunc)
 	t.InputWidget.SetInputCapture(t.inputWidgetInputCaptureFunc)
+	t.DescriptionWidget.SetInputCapture(t.descriptionWidgetInputCaptureFunc)
 }
 
 func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -36,21 +37,21 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'p':
 		t.InputWidget.SetTitle("New Project")
 		t.Pages.ShowPage(inputField)
-		t.App.SetFocus(t.InputWidget.Box)
+		t.pushFocus(t.InputWidget.Box)
 		t.InputWidget.Mode = 'p'
 		return nil
 	case 'n':
 		// New task
 		t.InputWidget.SetTitle("New Task")
 		t.Pages.ShowPage(inputField)
-		t.App.SetFocus(t.InputWidget.Box)
+		t.pushFocus(t.InputWidget.Box)
 		t.InputWidget.Mode = 'n'
 		return nil
 	case 'R':
 		// Rename Current Project
 		t.InputWidget.SetTitle("Rename Project")
 		t.Pages.ShowPage(inputField)
-		t.App.SetFocus(t.InputWidget.Box)
+		t.pushFocus(t.InputWidget.Box)
 		t.InputWidget.Mode = 'R'
 		return nil
 	case 'P':
@@ -111,7 +112,7 @@ func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		if row > n-1 {
 			t.TodoPane.Select(n-1, 0)
 		}
-		t.setFocus(t.TodoPane.Box)
+		t.pushFocus(t.TodoPane.Box)
 	}
 
 	return event
@@ -167,14 +168,21 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if row > n-1 {
 			t.ProjectPane.Select(n-1, 0)
 		}
-		t.setFocus(t.ProjectPane.Box)
+		t.pushFocus(t.ProjectPane.Box)
 	case 'l':
 		row, _ := t.DoingPane.GetSelection()
 		n := t.DoingPane.GetRowCount()
 		if row > n-1 {
 			t.DoingPane.Select(n-1, 0)
 		}
-		t.setFocus(t.DoingPane.Box)
+		t.pushFocus(t.DoingPane.Box)
+	case 'J':
+		task, ok := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
+		if !ok {
+			panic("todoPaneInputCaptureFunc: ref is not *todotxt.Task")
+		}
+		t.EditingTask = task
+		t.pushFocus(t.DescriptionWidget.Box)
 	case ' ':
 		f()
 	}
@@ -233,9 +241,16 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			t.DoingPane.AdjustSelection()
 		}
 	case 'h':
-		t.setFocus(t.TodoPane.Box)
+		t.pushFocus(t.TodoPane.Box)
 	case 'l':
-		t.setFocus(t.DonePane.Box)
+		t.pushFocus(t.DonePane.Box)
+	case 'J':
+		task, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+		if !ok {
+			panic("doingPaneInputCaptureFunc: ref is not *todotxt.Task")
+		}
+		t.EditingTask = task
+		t.pushFocus(t.DescriptionWidget.Box)
 	}
 
 	return event
@@ -293,7 +308,14 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		if row > n-1 {
 			t.DoingPane.Select(n-1, 0)
 		}
-		t.setFocus(t.DoingPane.Box)
+		t.pushFocus(t.DoingPane.Box)
+	case 'J':
+		task, ok := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
+		if !ok {
+			panic("donePaneInputCaptureFunc: ref is not *todotxt.Task")
+		}
+		t.EditingTask = task
+		t.pushFocus(t.DescriptionWidget.Box)
 	}
 
 	return event
@@ -305,8 +327,12 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 	switch event.Key() {
 	case tcell.KeyEscape:
 		t.Pages.HidePage(inputField)
-		t.setFocus(t.LastFocusedWidget)
+		t.popFocus()
 		t.InputWidget.SetText("")
+		switch t.InputWidget.Mode {
+		case 'f':
+			t.popFocus()
+		}
 		t.InputWidget.Mode = ' '
 		return nil
 	case tcell.KeyEnter:
@@ -346,13 +372,45 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 				task.Projects = []string{input}
 			}
 			t.refreshProjects()
+
+		case 'f':
+			// Edit Field
+			field := t.InputWidget.GetTitle()
+			setTaskField(t.EditingTask, field, input)
+			t.popFocus()
+			t.refreshProjects()
 		}
 
 		t.Pages.HidePage(inputField)
-		t.setFocus(t.LastFocusedWidget)
+		t.popFocus()
 		t.InputWidget.SetText("")
 		t.InputWidget.Mode = ' '
 		return nil
+	}
+
+	return event
+}
+
+func (t *Tui) descriptionWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
+	f := func() {
+		row, _ := t.DescriptionWidget.GetSelection()
+		field := t.DescriptionWidget.GetCell(row, 0).GetReference().(string)
+		t.InputWidget.SetTitle(field)
+		t.InputWidget.SetText(getTaskField(t.EditingTask, field))
+		t.InputWidget.Mode = 'f'
+		t.Pages.ShowPage(inputField)
+		t.pushFocus(t.InputWidget.Box)
+	}
+
+	switch event.Key() {
+	case tcell.KeyEnter:
+		f()
+	}
+	switch event.Rune() {
+	case 'K':
+		t.popFocus()
+	case ' ':
+		f()
 	}
 
 	return event

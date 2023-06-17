@@ -6,6 +6,7 @@ func (t *Tui) setFocusedFunc() {
 	t.TodoPane.SetFocusFunc(t.todoPaneInputFocusFunc)
 	t.DoingPane.SetFocusFunc(t.doingPaneInputFocusFunc)
 	t.DonePane.SetFocusFunc(t.donePaneInputFocusFunc)
+  t.DescriptionWidget.SetFocusFunc(t.descriptionWidgetInputFocusFunc)
 }
 
 func (t *Tui) todoPaneInputFocusFunc() {
@@ -37,4 +38,8 @@ func (t *Tui) tableInputFocusFunc(table *TodoTable) {
 
 	row, col := table.GetSelection()
 	table.Select(row, col)
+}
+
+func (t *Tui) descriptionWidgetInputFocusFunc() {
+  t.DescriptionWidget.SetSelectable(true, false)
 }

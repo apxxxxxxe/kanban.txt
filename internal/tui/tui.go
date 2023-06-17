@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	todotxt "github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
@@ -22,7 +23,8 @@ type Tui struct {
 	HelpWidget         *tview.TextView
 	InputWidget        *InputBox
 	ColorWidget        *tview.Table
-	LastFocusedWidget  *tview.Box
+	FocusStack         []*tview.Box
+	EditingTask        *todotxt.Task
 	ConfirmationStatus int
 	CurrentLeftTable   int
 	IsLoading          bool
@@ -67,7 +69,8 @@ func NewTui() *Tui {
 		InfoWidget:         newTextView(infoWidgetTitle),
 		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
-		LastFocusedWidget:  nil,
+		FocusStack:         []*tview.Box{},
+		EditingTask:        nil,
 		ConfirmationStatus: defaultStatus,
 		CurrentLeftTable:   enumTodoPane,
 		IsLoading:          false,
@@ -109,9 +112,20 @@ func NewTui() *Tui {
 	return tui
 }
 
-func (t *Tui) setFocus(b *tview.Box) {
-	t.LastFocusedWidget = b
+func (t *Tui) pushFocus(b *tview.Box) {
+	t.FocusStack = append(t.FocusStack, b)
 	t.App.SetFocus(b)
+}
+
+func (t *Tui) popFocus() {
+	if len(t.FocusStack) == 0 {
+		return
+	}
+	t.FocusStack = t.FocusStack[:len(t.FocusStack)-1]
+	if len(t.FocusStack) == 0 {
+		return
+	}
+	t.App.SetFocus(t.FocusStack[len(t.FocusStack)-1])
 }
 
 func (t *Tui) Descript(desc [][]string) {
@@ -120,7 +134,9 @@ func (t *Tui) Descript(desc [][]string) {
 		return
 	}
 	for i, line := range desc {
-		t.DescriptionWidget.SetCellSimple(i, 0, "[#a0a0a0::b]"+line[0])
+		titleCell := tview.NewTableCell("[#a0a0a0::b]" + line[0])
+		titleCell.SetReference(line[0])
+		t.DescriptionWidget.SetCell(i, 0, titleCell)
 		t.DescriptionWidget.SetCellSimple(i, 1, line[1])
 	}
 }
@@ -175,7 +191,7 @@ func (t *Tui) Run() error {
 	t.donePaneBlurFunc()
 	t.descriptionWidgetBlurFunc()
 
-	t.setFocus(t.ProjectPane.Box)
+	t.pushFocus(t.ProjectPane.Box)
 
 	if err := t.App.Run(); err != nil {
 		t.App.Stop()

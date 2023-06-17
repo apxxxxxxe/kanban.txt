@@ -2,9 +2,8 @@ package tui
 
 import (
 	"fmt"
-	"time"
 
-	todo "github.com/1set/todotxt"
+	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 )
 
@@ -53,7 +52,7 @@ func (t *Tui) donePaneSelectionChangedFunc(row, col int) {
 }
 
 func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
-	task, ok := table.GetCell(row, col).Reference.(*todo.Task)
+	task, ok := table.GetCell(row, col).Reference.(*todotxt.Task)
 	if ok {
 		contexts := ""
 		if task.Contexts != nil {
@@ -67,25 +66,21 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 				projects += p + " "
 			}
 		}
-		description := [][]string{
-			// {"ID", strconv.Itoa(task.ID)},
-			{"Projects", projects},
-			{"Priority", task.Priority},
-			{"Title", task.Todo},
-			{"Contexts", contexts},
-			{"DueDate", timeToStr(task.DueDate)},
-			{"CompletedDate", timeToStr(task.CompletedDate)},
-			{"CreatedDate", timeToStr(task.CreatedDate)},
+		fields := []string{
+			todoProjects,
+			todoPriority,
+			todoTitle,
+			todoContexts,
+			todoDueDate,
+			todoCompletedDate,
+			todoCreatedDate,
+		}
+		description := [][]string{}
+		for _, field := range fields {
+			description = append(description, []string{field, getTaskField(task, field)})
 		}
 		t.Descript(description)
 	} else {
 		t.Descript(nil)
 	}
-}
-
-func timeToStr(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.Format(todo.DateLayout)
 }
