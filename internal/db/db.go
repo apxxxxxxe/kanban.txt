@@ -15,6 +15,7 @@ const (
 	SavePrefixGroup = "g_"
 	SavePrefixFeed  = "f_"
 	noProject       = "NoProject"
+	allTasks        = "AllTasks"
 )
 
 var (
@@ -186,8 +187,23 @@ func (d *Database) RefreshProjects() error {
 
 	// sort projects
 	sort.Slice(d.Projects, func(i, j int) bool {
-		return d.Projects[i].ProjectName < d.Projects[j].ProjectName
+		// sort by project name
+		// noProject is always the first
+		if d.Projects[i].ProjectName == noProject {
+			return true
+		} else if d.Projects[j].ProjectName == noProject {
+			return false
+		} else {
+			return d.Projects[i].ProjectName < d.Projects[j].ProjectName
+		}
 	})
+
+	// add AllTasks to the first
+	allTasks := &Project{ProjectName: allTasks}
+	allTasks.TodoTasks = getTodoTasks(d.WholeTasks)
+	allTasks.DoingTasks = getDoingTasks(d.WholeTasks)
+	allTasks.DoneTasks = getDoneTasks(d.WholeTasks)
+	d.Projects = append([]*Project{allTasks}, d.Projects...)
 
 	if err := d.SaveData(); err != nil {
 		return err
