@@ -28,6 +28,15 @@ type TodoTable struct {
 
 var ErrFeedNotExist = errors.Errorf("Feed Not Exist")
 
+func (t *TodoTable) SelectByText(text string) {
+	for row := 0; row < t.GetRowCount(); row++ {
+		cell := t.GetCell(row, 0)
+		if cell.Text == text {
+			t.Select(row, 0)
+		}
+	}
+}
+
 func (t *TodoTable) AdjustSelection() {
 	n := t.GetRowCount()
 	if n == 0 {

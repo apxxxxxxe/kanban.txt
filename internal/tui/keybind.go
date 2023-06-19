@@ -56,20 +56,27 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case 'P':
 		// add or increment priority
+		var cellText string
 		var task *todotxt.Task = nil
 		var ok bool
 		if t.TodoPane.HasFocus() {
-			task, ok = t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
+			cell := t.TodoPane.GetCell(t.TodoPane.GetSelection())
+			cellText = cell.Text
+			task, ok = cell.GetReference().(*todotxt.Task)
 			if !ok {
 				panic("AppInputCaptureFunc: ref is not *todotxt.Task")
 			}
 		} else if t.DoingPane.HasFocus() {
-			task, ok = t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
+			cell := t.DoingPane.GetCell(t.DoingPane.GetSelection())
+			cellText = cell.Text
+			task, ok = cell.GetReference().(*todotxt.Task)
 			if !ok {
 				panic("AppInputCaptureFunc: ref is not *todotxt.Task")
 			}
 		} else if t.DonePane.HasFocus() {
-			task, ok = t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
+			cell := t.DonePane.GetCell(t.DonePane.GetSelection())
+			cellText = cell.Text
+			task, ok = cell.GetReference().(*todotxt.Task)
 			if !ok {
 				panic("AppInputCaptureFunc: ref is not *todotxt.Task")
 			}
@@ -97,6 +104,13 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 				}
 			}
 			t.refreshProjects()
+			if t.TodoPane.HasFocus() {
+				t.TodoPane.SelectByText(cellText)
+			} else if t.DoingPane.HasFocus() {
+				t.DoingPane.SelectByText(cellText)
+			} else if t.DonePane.HasFocus() {
+				t.DonePane.SelectByText(cellText)
+			}
 		}
 		return nil
 	default:
