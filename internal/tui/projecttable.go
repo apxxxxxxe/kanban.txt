@@ -2,6 +2,7 @@ package tui
 
 import (
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -39,6 +40,10 @@ func (t *ProjectTable) setCell(p *db.Project) *tview.TableCell {
 	}
 
 	cell := tview.NewTableCell(p.ProjectName).SetReference(p)
+
+	if len(p.TodoTasks)+len(p.DoingTasks) == 0 {
+		cell.SetTextColor(tcell.ColorGray)
+	}
 
 	t.SetCell(targetRow, 0, cell)
 

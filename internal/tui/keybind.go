@@ -347,7 +347,11 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			}
 
 			// add current project
-			task.Projects = []string{project.ProjectName}
+			if project.ProjectName == db.AllTasks {
+				task.Projects = []string{db.NoProject}
+			} else {
+				task.Projects = []string{project.ProjectName}
+			}
 
 			// remove context "doing"
 			for i, context := range task.Contexts {

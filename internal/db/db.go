@@ -14,8 +14,8 @@ const (
 	TodaysFeedTitle = "Today's Articles"
 	SavePrefixGroup = "g_"
 	SavePrefixFeed  = "f_"
-	noProject       = "NoProject"
-	allTasks        = "AllTasks"
+	NoProject       = "NoProject"
+	AllTasks        = "AllTasks"
 )
 
 var (
@@ -55,24 +55,19 @@ func removeContexts(t *todotxt.Task) {
 func GetProjectName(t todotxt.Task) string {
 	projects := t.Projects
 	if len(projects) == 0 || projects == nil {
-		return noProject
+		panic("no project")
 	}
 	return projects[0]
-}
-
-func (d *Database) Reset() {
-	d.Projects = []*Project{
-		{
-			ProjectName: noProject,
-			TodoTasks:   TaskReferences{},
-		},
-	}
 }
 
 func (d *Database) SaveData() error {
 	tasklist := todotxt.NewTaskList()
 	for i := range d.WholeTasks {
-		tasklist = append(tasklist, *d.WholeTasks[i])
+		task := *d.WholeTasks[i]
+		if task.Projects != nil && len(task.Projects) > 0 && task.Projects[0] == NoProject {
+			task.Projects = nil
+		}
+		tasklist = append(tasklist, task)
 	}
 
 	if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
@@ -105,7 +100,11 @@ func (d *Database) LoadData() error {
 
 	taskList := TaskReferences{}
 	for i := range tmpList {
-		taskList = append(taskList, &tmpList[i])
+		task := tmpList[i]
+		if task.Projects == nil || len(task.Projects) == 0 {
+			task.Projects = []string{NoProject}
+		}
+		taskList = append(taskList, &task)
 	}
 
 	// Remove contexts from completed tasks
@@ -121,7 +120,7 @@ func (d *Database) LoadData() error {
 		return err
 	}
 
-	d.Reset()
+  d.Projects = []*Project{}
 	d.WholeTasks = taskList
 
 	return nil
@@ -133,7 +132,7 @@ func (d *Database) RefreshProjects() error {
 		return err
 	}
 
-	d.Projects = []*Project{{ProjectName: noProject}}
+	d.Projects = []*Project{}
 
 	if len(d.WholeTasks) == 0 {
 		return nil
@@ -169,9 +168,9 @@ func (d *Database) RefreshProjects() error {
 			projectName := GetProjectName(*task)
 			project, ok := projectList[projectName]
 			if !ok {
-				d.Projects = append(d.Projects, &Project{ProjectName: projectName})
-				projectList[projectName] = d.Projects[len(d.Projects)-1]
-				project = d.Projects[len(d.Projects)-1]
+				project = &Project{ProjectName: projectName}
+				d.Projects = append(d.Projects, project)
+				projectList[projectName] = project
 			}
 
 			switch key {
@@ -189,9 +188,9 @@ func (d *Database) RefreshProjects() error {
 	sort.Slice(d.Projects, func(i, j int) bool {
 		// sort by project name
 		// noProject is always the first
-		if d.Projects[i].ProjectName == noProject {
+		if d.Projects[i].ProjectName == NoProject {
 			return true
-		} else if d.Projects[j].ProjectName == noProject {
+		} else if d.Projects[j].ProjectName == NoProject {
 			return false
 		} else {
 			return d.Projects[i].ProjectName < d.Projects[j].ProjectName
@@ -199,7 +198,7 @@ func (d *Database) RefreshProjects() error {
 	})
 
 	// add AllTasks to the first
-	allTasks := &Project{ProjectName: allTasks}
+	allTasks := &Project{ProjectName: AllTasks}
 	allTasks.TodoTasks = getTodoTasks(d.WholeTasks)
 	allTasks.DoingTasks = getDoingTasks(d.WholeTasks)
 	allTasks.DoneTasks = getDoneTasks(d.WholeTasks)

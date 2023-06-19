@@ -1,7 +1,5 @@
 package tui
 
-import ()
-
 func (t *Tui) setFocusedFunc() {
 	t.TodoPane.SetFocusFunc(t.todoPaneInputFocusFunc)
 	t.DoingPane.SetFocusFunc(t.doingPaneInputFocusFunc)
