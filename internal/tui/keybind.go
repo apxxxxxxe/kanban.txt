@@ -191,11 +191,7 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		}
 		t.pushFocus(t.DoingPane.Box)
 	case 'J':
-		task, ok := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
-		if !ok {
-			panic("todoPaneInputCaptureFunc: ref is not *todotxt.Task")
-		}
-		t.EditingTask = task
+		t.EditingCell = t.TodoPane.GetCell(t.TodoPane.GetSelection())
 		t.pushFocus(t.DescriptionWidget.Box)
 	case ' ':
 		f()
@@ -259,11 +255,7 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'l':
 		t.pushFocus(t.DonePane.Box)
 	case 'J':
-		task, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
-		if !ok {
-			panic("doingPaneInputCaptureFunc: ref is not *todotxt.Task")
-		}
-		t.EditingTask = task
+		t.EditingCell = t.DoingPane.GetCell(t.DoingPane.GetSelection())
 		t.pushFocus(t.DescriptionWidget.Box)
 	}
 
@@ -324,11 +316,7 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		}
 		t.pushFocus(t.DoingPane.Box)
 	case 'J':
-		task, ok := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
-		if !ok {
-			panic("donePaneInputCaptureFunc: ref is not *todotxt.Task")
-		}
-		t.EditingTask = task
+		t.EditingCell = t.DonePane.GetCell(t.DonePane.GetSelection())
 		t.pushFocus(t.DescriptionWidget.Box)
 	}
 
@@ -337,6 +325,17 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 
 func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	project := t.ProjectPane.GetCurrentProject()
+
+	hideInputField := func() {
+		focus := t.App.GetFocus()
+		t.Pages.HidePage(inputField)
+
+		// it prevents the focus from the effect of HidePage
+		t.App.SetFocus(focus)
+
+		t.InputWidget.SetText("")
+		t.InputWidget.Mode = ' '
+	}
 
 	switch event.Key() {
 	case tcell.KeyEscape:
@@ -394,15 +393,36 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		case 'f':
 			// Edit Field
 			field := t.InputWidget.GetTitle()
-			setTaskField(t.EditingTask, field, input)
-			t.popFocus()
+			cellText := t.EditingCell.Text
+			task, ok := t.EditingCell.GetReference().(*todotxt.Task)
+			if !ok {
+				panic("inputWidgetInputCaptureFunc: ref is not *todotxt.Task")
+			}
+			setTaskField(task, field, input)
+
+			t.popFocus() // pop focus from inputWidget
+			t.popFocus() // pop focus from descriptionWidget
+			// now focus is on the pane
+
+			var selectCell func(string)
+			if t.TodoPane.HasFocus() {
+				selectCell = t.TodoPane.SelectByText
+			} else if t.DoingPane.HasFocus() {
+				selectCell = t.DoingPane.SelectByText
+			} else if t.DonePane.HasFocus() {
+				selectCell = t.DonePane.SelectByText
+			} else {
+				panic("inputWidgetInputCaptureFunc: no pane has focus")
+			}
+
 			t.refreshProjects()
+			hideInputField()
+			selectCell(cellText)
+			return nil
 		}
 
-		t.Pages.HidePage(inputField)
 		t.popFocus()
-		t.InputWidget.SetText("")
-		t.InputWidget.Mode = ' '
+		hideInputField()
 		return nil
 	}
 
@@ -414,7 +434,11 @@ func (t *Tui) descriptionWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.Ev
 		row, _ := t.DescriptionWidget.GetSelection()
 		field := t.DescriptionWidget.GetCell(row, 0).GetReference().(string)
 		t.InputWidget.SetTitle(field)
-		t.InputWidget.SetText(getTaskField(t.EditingTask, field))
+		task, ok := t.EditingCell.GetReference().(*todotxt.Task)
+		if !ok {
+			panic("descriptionWidgetInputCaptureFunc: ref is not *todotxt.Task")
+		}
+		t.InputWidget.SetText(getTaskField(task, field))
 		t.InputWidget.Mode = 'f'
 		t.Pages.ShowPage(inputField)
 		t.pushFocus(t.InputWidget.Box)

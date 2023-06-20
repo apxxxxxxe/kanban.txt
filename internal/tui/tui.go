@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 
-	todotxt "github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
@@ -24,7 +23,7 @@ type Tui struct {
 	InputWidget        *InputBox
 	ColorWidget        *tview.Table
 	FocusStack         []*tview.Box
-	EditingTask        *todotxt.Task
+	EditingCell        *tview.TableCell
 	ConfirmationStatus int
 	CurrentLeftTable   int
 	IsLoading          bool
@@ -70,7 +69,7 @@ func NewTui() *Tui {
 		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
 		FocusStack:         []*tview.Box{},
-		EditingTask:        nil,
+    EditingCell:        nil,
 		ConfirmationStatus: defaultStatus,
 		CurrentLeftTable:   enumTodoPane,
 		IsLoading:          false,
