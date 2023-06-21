@@ -120,7 +120,7 @@ func (d *Database) LoadData() error {
 		return err
 	}
 
-  d.Projects = []*Project{}
+	d.Projects = []*Project{}
 	d.WholeTasks = taskList
 
 	return nil
@@ -128,7 +128,7 @@ func (d *Database) LoadData() error {
 
 func (d *Database) RefreshProjects() error {
 	// sort whole tasks
-	if err := d.WholeTasks.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
+	if err := d.WholeTasks.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc, todotxt.SortTodoTextAsc); err != nil {
 		return err
 	}
 
