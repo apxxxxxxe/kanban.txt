@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/1set/todotxt"
+	"github.com/apxxxxxxe/kanban.txt/internal/task"
 )
 
 const (
@@ -60,14 +61,29 @@ func GetProjectName(t todotxt.Task) string {
 	return projects[0]
 }
 
+func copyTask(t todotxt.Task) todotxt.Task {
+	var newTask todotxt.Task
+	newTask = t
+	newTask.AdditionalTags = map[string]string{}
+	for k, v := range t.AdditionalTags {
+		newTask.AdditionalTags[k] = v
+	}
+	return newTask
+}
+
 func (d *Database) SaveData() error {
 	tasklist := todotxt.NewTaskList()
-	for i := range d.WholeTasks {
-		task := *d.WholeTasks[i]
-		if task.Projects != nil && len(task.Projects) > 0 && task.Projects[0] == NoProject {
-			task.Projects = nil
+	for _, t := range d.WholeTasks {
+		tasklist = append(tasklist, copyTask(*t))
+	}
+
+	for _, t := range tasklist {
+		if t.Projects != nil && len(t.Projects) > 0 && t.Projects[0] == NoProject {
+			t.Projects = nil
 		}
-		tasklist = append(tasklist, task)
+		if _, ok := t.AdditionalTags[task.KeyNext]; ok {
+			delete(t.AdditionalTags, task.KeyNext)
+		}
 	}
 
 	if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
@@ -130,6 +146,12 @@ func (d *Database) RefreshProjects() error {
 	// sort whole tasks
 	if err := d.WholeTasks.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc, todotxt.SortTodoTextAsc); err != nil {
 		return err
+	}
+
+	for _, t := range d.WholeTasks {
+		if err := task.ParseRecurrence(t); err != nil {
+			return err
+		}
 	}
 
 	d.Projects = []*Project{}

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/1set/todotxt"
+	"github.com/apxxxxxxe/kanban.txt/internal/task"
 )
 
 const (
@@ -14,59 +15,75 @@ const (
 	todoDueDate       = "DueDate"
 	todoCompletedDate = "CompletedDate"
 	todoCreatedDate   = "CreatedDate"
+	todoRecurrence    = "Recurrence"
+	todoNext          = "Next"
 )
 
-func getTaskField(task *todotxt.Task, field string) string {
+func getTaskField(t *todotxt.Task, field string) string {
 	switch field {
 	case todoProjects:
-		if len(task.Projects) == 0 {
+		if len(t.Projects) == 0 {
 			return ""
 		}
-		return task.Projects[0]
+		return t.Projects[0]
 	case todoPriority:
-		return task.Priority
+		return t.Priority
 	case todoTitle:
-		return task.Todo
+		return t.Todo
 	case todoContexts:
-		if len(task.Contexts) == 0 {
+		if len(t.Contexts) == 0 {
 			return ""
 		}
-		return task.Contexts[0]
+		return t.Contexts[0]
 	case todoDueDate:
-		return timeToStr(task.DueDate)
+		return timeToStr(t.DueDate)
 	case todoCompletedDate:
-		return timeToStr(task.CompletedDate)
+		return timeToStr(t.CompletedDate)
 	case todoCreatedDate:
-		return timeToStr(task.CreatedDate)
+		return timeToStr(t.CreatedDate)
+	case todoRecurrence:
+		return t.AdditionalTags[task.KeyRec]
+	case todoNext:
+		return t.AdditionalTags[task.KeyNext]
 	default:
 		panic("invalid field: " + field)
 	}
 }
 
-func setTaskField(task *todotxt.Task, field, value string) {
+func setTaskField(t *todotxt.Task, field, value string) {
 	switch field {
 	case todoProjects:
-		if len(task.Projects) == 0 {
-			task.Projects = []string{value}
+		if len(t.Projects) == 0 {
+			t.Projects = []string{value}
 		} else {
-			task.Projects[0] = value
+			t.Projects[0] = value
 		}
 	case todoPriority:
-		task.Priority = value
+		t.Priority = value
 	case todoTitle:
-		task.Todo = value
+		t.Todo = value
 	case todoContexts:
-		if len(task.Contexts) == 0 {
-			task.Contexts = []string{value}
+		if len(t.Contexts) == 0 {
+			t.Contexts = []string{value}
 		} else {
-			task.Contexts[0] = value
+			t.Contexts[0] = value
 		}
 	case todoDueDate:
-		task.DueDate = strToTime(value)
+		t.DueDate = strToTime(value)
 	case todoCompletedDate:
-		task.CompletedDate = strToTime(value)
+		t.CompletedDate = strToTime(value)
 	case todoCreatedDate:
-		task.CreatedDate = strToTime(value)
+		t.CreatedDate = strToTime(value)
+	case todoRecurrence:
+		if t.AdditionalTags == nil {
+			t.AdditionalTags = map[string]string{}
+		}
+		t.AdditionalTags[task.KeyRec] = value
+	case todoNext:
+		if t.AdditionalTags == nil {
+			t.AdditionalTags = map[string]string{}
+		}
+		t.AdditionalTags[task.KeyNext] = value
 	default:
 		panic("invalid field: " + field)
 	}
