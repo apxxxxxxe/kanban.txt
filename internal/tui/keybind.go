@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
@@ -358,6 +360,9 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 				t.Notify(err.Error(), true)
 				return nil
 			}
+
+			// add CreatedDate
+			task.CreatedDate = time.Now()
 
 			// add current project
 			if project.ProjectName == db.AllTasks {
