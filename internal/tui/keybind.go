@@ -165,7 +165,7 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 					panic("todoPaneInputCaptureFunc: ref is not *todotxt.Task")
 				}
 
-				t.DB.WholeTasks.RemoveTask(task)
+				t.DB.LivingTasks.RemoveTask(task)
 				t.refreshProjects()
 
 				t.Notify("deleted todo task", false)
@@ -226,7 +226,7 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 					panic("doingPaneInputCaptureFunc: ref is not *todotxt.Task")
 				}
 
-				t.DB.WholeTasks.RemoveTask(task)
+				t.DB.LivingTasks.RemoveTask(task)
 				t.refreshProjects()
 
 				t.Notify("Deleted doing task", false)
@@ -294,7 +294,7 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 					panic("donePaneInputCaptureFunc: ref is not *todotxt.Task")
 				}
 
-				t.DB.WholeTasks.RemoveTask(task)
+				t.DB.LivingTasks.RemoveTask(task)
 				t.refreshProjects()
 
 				t.Notify("Deleted done task", false)
@@ -379,7 +379,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 				}
 			}
 
-			t.DB.WholeTasks.AddTask(task)
+			t.DB.LivingTasks.AddTask(task)
 			t.refreshProjects()
 
 		case 'p':
@@ -389,7 +389,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 
 		case 'R':
 			// Rename Project
-			taskList := t.DB.WholeTasks.Filter(todotxt.FilterByProject(project.ProjectName))
+			taskList := t.DB.LivingTasks.Filter(todotxt.FilterByProject(project.ProjectName))
 			for _, task := range *taskList {
 				task.Projects = []string{input}
 			}

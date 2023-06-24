@@ -24,12 +24,14 @@ var (
 	DataPath       = filepath.Join(getDataPath(), "data")
 	ExportListPath = filepath.Join(getDataPath(), "list_export.txt")
 	ImportPath     = filepath.Join(getDataPath(), "todo.txt")
+	ArchivePath    = filepath.Join(getDataPath(), "archive.txt")
 	ConfigPath     = filepath.Join(getDataPath(), "config.json")
 )
 
 type Database struct {
-	WholeTasks TaskReferences
-	Projects   []*Project
+	LivingTasks   TaskReferences
+	ArchivedTasks TaskReferences
+	Projects      []*Project
 }
 
 type Project struct {
@@ -95,8 +97,18 @@ func copyTask(t todotxt.Task) todotxt.Task {
 }
 
 func (d *Database) SaveData() error {
+	if err := d.saveData(d.LivingTasks, ImportPath); err != nil {
+		return err
+	}
+	if err := d.saveData(d.ArchivedTasks, ArchivePath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Database) saveData(taskList TaskReferences, filePath string) error {
 	tasklist := todotxt.NewTaskList()
-	for _, t := range d.WholeTasks {
+	for _, t := range taskList {
 		tasklist = append(tasklist, copyTask(*t))
 	}
 
@@ -104,16 +116,13 @@ func (d *Database) SaveData() error {
 		if t.Projects != nil && len(t.Projects) > 0 && t.Projects[0] == NoProject {
 			t.Projects = nil
 		}
-		if _, ok := t.AdditionalTags[task.KeyNext]; ok {
-			delete(t.AdditionalTags, task.KeyNext)
-		}
 	}
 
 	if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
 		return err
 	}
 
-	fp, err := os.Create(ImportPath)
+	fp, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
@@ -131,13 +140,32 @@ func (d *Database) SaveData() error {
 
 func (d *Database) LoadData() error {
 	var err error
-	tmpList := todotxt.TaskList{}
-	tmpList, err = todotxt.LoadFromPath(ImportPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+
+	d.LivingTasks, err = d.loadData(ImportPath)
+	if err != nil {
 		return err
 	}
 
+	d.ArchivedTasks, err = d.loadData(ArchivePath)
+	if err != nil {
+		return err
+	}
+
+	d.Projects = []*Project{}
+	return nil
+}
+
+func (d *Database) loadData(filePath string) (TaskReferences, error) {
+	var err error
 	taskList := TaskReferences{}
+	tmpList := todotxt.TaskList{}
+	tmpList, err = todotxt.LoadFromPath(filePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	} else if errors.Is(err, os.ErrNotExist) {
+		return taskList, nil
+	}
+
 	for i := range tmpList {
 		task := tmpList[i]
 		if task.Projects == nil || len(task.Projects) == 0 {
@@ -156,19 +184,16 @@ func (d *Database) LoadData() error {
 	}
 
 	if err = taskList.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
-		return err
+		return nil, err
 	}
 
-	d.Projects = []*Project{}
-	d.WholeTasks = taskList
-
-	return nil
+	return taskList, nil
 }
 
 func (d *Database) recurrentTasks() error {
 	now := time.Now()
 	tasks := map[string]*todotxt.Task{}
-	doneTasks := *d.WholeTasks.Filter(todotxt.FilterCompleted)
+	doneTasks := *d.LivingTasks.Filter(todotxt.FilterCompleted)
 	doneTasks.Sort(todotxt.SortCreatedDateDesc)
 	for _, t := range doneTasks {
 		key := t.Todo + t.Priority + GetProjectName(*t)
@@ -178,13 +203,13 @@ func (d *Database) recurrentTasks() error {
 	}
 
 	for _, t := range tasks {
-		if next, ok := t.AdditionalTags[task.KeyNext]; ok {
-			nextTime, err := time.Parse(todotxt.DateLayout, next)
+		if _, ok := t.AdditionalTags[task.KeyRec]; ok {
+			nextTime, err := task.ParseRecurrence(t)
 			if err != nil {
 				return err
 			}
 			if nextTime.Before(now) {
-				sameTasks := d.WholeTasks.
+				sameTasks := d.LivingTasks.
 					Filter(todotxt.FilterNotCompleted).
 					Filter(filterByTodo(t.Todo)).
 					Filter(todotxt.FilterByPriority(t.Priority)).
@@ -194,13 +219,19 @@ func (d *Database) recurrentTasks() error {
 					newTask := copyTask(*t)
 					newTask.Reopen()
 					newTask.CreatedDate = now
-					d.WholeTasks.AddTask(&newTask)
+					d.LivingTasks.AddTask(&newTask)
+					d.moveToArchive(t)
 				}
 			}
 		}
 	}
 
 	return nil
+}
+
+func (d *Database) moveToArchive(t *todotxt.Task) {
+	d.LivingTasks.RemoveTask(t)
+	d.ArchivedTasks.AddTask(t)
 }
 
 func filterByTodo(todo string) todotxt.Predicate {
@@ -216,27 +247,11 @@ func filterHasSameContexts(a todotxt.Task) todotxt.Predicate {
 }
 
 func (d *Database) RefreshProjects() error {
-	l := len(d.WholeTasks)
-	for _, t := range d.WholeTasks {
-		if err := task.ParseRecurrence(t); err != nil {
-			return err
-		}
-	}
-
 	if err := d.recurrentTasks(); err != nil {
 		return err
 	}
 
-	// TODO: more smart way
-	if l != len(d.WholeTasks) {
-		for _, t := range d.WholeTasks {
-			if err := task.ParseRecurrence(t); err != nil {
-				return err
-			}
-		}
-	}
-
-	if err := d.WholeTasks.Sort(
+	if err := d.LivingTasks.Sort(
 		todotxt.SortPriorityAsc,
 		todotxt.SortDueDateAsc,
 		todotxt.SortTodoTextAsc,
@@ -246,7 +261,7 @@ func (d *Database) RefreshProjects() error {
 
 	d.Projects = []*Project{}
 
-	if len(d.WholeTasks) == 0 {
+	if len(d.LivingTasks) == 0 {
 		return nil
 	}
 
@@ -276,7 +291,7 @@ func (d *Database) RefreshProjects() error {
 
 	projectList := map[string]*Project{}
 	for key, fn := range list {
-		for _, task := range fn(d.WholeTasks) {
+		for _, task := range fn(d.LivingTasks) {
 			projectName := GetProjectName(*task)
 			project, ok := projectList[projectName]
 			if !ok {
@@ -311,9 +326,9 @@ func (d *Database) RefreshProjects() error {
 
 	// add AllTasks to the first
 	allTasks := &Project{ProjectName: AllTasks}
-	allTasks.TodoTasks = getTodoTasks(d.WholeTasks)
-	allTasks.DoingTasks = getDoingTasks(d.WholeTasks)
-	allTasks.DoneTasks = getDoneTasks(d.WholeTasks)
+	allTasks.TodoTasks = getTodoTasks(d.LivingTasks)
+	allTasks.DoingTasks = getDoingTasks(d.LivingTasks)
+	allTasks.DoneTasks = getDoneTasks(d.LivingTasks)
 	d.Projects = append([]*Project{allTasks}, d.Projects...)
 
 	if err := d.SaveData(); err != nil {

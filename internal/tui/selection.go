@@ -29,7 +29,7 @@ func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
 	t.DonePane.ResetCell(project.DoneTasks)
 
 	description := [][]string{
-		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.WholeTasks))},
+		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.LivingTasks))},
 		{"name", project.ProjectName},
 		{"len", fmt.Sprintf("%d", len(project.TodoTasks)+len(project.DoingTasks)+len(project.DoneTasks))},
 		{"todo", project.TodoTasks.String()},
@@ -75,7 +75,6 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 			todoCompletedDate,
 			todoCreatedDate,
 			todoRecurrence,
-			todoNext,
 		}
 		description := [][]string{}
 		for _, field := range fields {

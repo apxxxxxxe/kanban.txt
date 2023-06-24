@@ -9,8 +9,7 @@ import (
 )
 
 const (
-  KeyRec = "rec"
-  KeyNext = "next"
+	KeyRec  = "rec"
 )
 
 func ToTodo(task *todotxt.Task) {
@@ -47,12 +46,13 @@ func ToDone(task *todotxt.Task) {
 	task.Complete()
 }
 
-func ParseRecurrence(task *todotxt.Task) error {
+func ParseRecurrence(task *todotxt.Task) (time.Time, error) {
+	nextOpenTime := time.Time{}
 	if task.HasAdditionalTags() {
 		if v, ok := task.AdditionalTags[KeyRec]; ok {
-      num, err := strconv.Atoi(v[:len(v)-1])
+			num, err := strconv.Atoi(v[:len(v)-1])
 			if err != nil {
-				return err
+				return nextOpenTime, err
 			}
 			period := v[len(v)-1:]
 			var dur time.Duration
@@ -66,11 +66,10 @@ func ParseRecurrence(task *todotxt.Task) error {
 			case "y":
 				dur = time.Duration(num) * 365 * 24 * time.Hour
 			default:
-				return errors.New("invalid recurrence period")
+				return nextOpenTime, errors.New("invalid recurrence period")
 			}
-			task.AdditionalTags[KeyNext] = task.CreatedDate.Add(dur).Format(todotxt.DateLayout)
+			nextOpenTime = task.CreatedDate.Add(dur)
 		}
 	}
-
-	return nil
+	return nextOpenTime, nil
 }
