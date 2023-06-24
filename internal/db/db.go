@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/1set/todotxt"
 	"github.com/apxxxxxxe/kanban.txt/internal/task"
@@ -51,6 +52,28 @@ func removeContexts(t *todotxt.Task) {
 		}
 	}
 	t, _ = todotxt.ParseTask(raw)
+}
+
+func displayContextsWithoutDoing(t *todotxt.Task) string {
+	raw := ""
+	cs := t.Contexts
+	sort.Strings(cs)
+	for _, s := range cs {
+		if s != "doing" {
+			raw += s + " "
+		}
+	}
+	return raw
+}
+
+func displayContexts(t *todotxt.Task) string {
+	raw := ""
+	cs := t.Contexts
+	sort.Strings(cs)
+	for _, s := range cs {
+		raw += s + " "
+	}
+	return raw
 }
 
 func GetProjectName(t todotxt.Task) string {
@@ -142,16 +165,83 @@ func (d *Database) LoadData() error {
 	return nil
 }
 
-func (d *Database) RefreshProjects() error {
-	// sort whole tasks
-	if err := d.WholeTasks.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc, todotxt.SortTodoTextAsc); err != nil {
-		return err
+func (d *Database) recurrentTasks() error {
+	now := time.Now()
+	tasks := map[string]*todotxt.Task{}
+	doneTasks := *d.WholeTasks.Filter(todotxt.FilterCompleted)
+	doneTasks.Sort(todotxt.SortCreatedDateDesc)
+	for _, t := range doneTasks {
+		key := t.Todo + t.Priority + GetProjectName(*t)
+		if _, ok := tasks[key]; !ok {
+			tasks[key] = t
+		}
 	}
 
+	for _, t := range tasks {
+		if next, ok := t.AdditionalTags[task.KeyNext]; ok {
+			nextTime, err := time.Parse(todotxt.DateLayout, next)
+			if err != nil {
+				return err
+			}
+			if nextTime.Before(now) {
+				sameTasks := d.WholeTasks.
+					Filter(todotxt.FilterNotCompleted).
+					Filter(filterByTodo(t.Todo)).
+					Filter(todotxt.FilterByPriority(t.Priority)).
+					Filter(todotxt.FilterByProject(GetProjectName(*t))).
+					Filter(filterHasSameContexts(*t))
+				if len(*sameTasks) == 0 {
+					newTask := copyTask(*t)
+					newTask.Reopen()
+					newTask.CreatedDate = now
+					d.WholeTasks.AddTask(&newTask)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func filterByTodo(todo string) todotxt.Predicate {
+	return func(t todotxt.Task) bool {
+		return t.Todo == todo
+	}
+}
+
+func filterHasSameContexts(a todotxt.Task) todotxt.Predicate {
+	return func(t todotxt.Task) bool {
+		return displayContextsWithoutDoing(&a) == displayContextsWithoutDoing(&t)
+	}
+}
+
+func (d *Database) RefreshProjects() error {
+	l := len(d.WholeTasks)
 	for _, t := range d.WholeTasks {
 		if err := task.ParseRecurrence(t); err != nil {
 			return err
 		}
+	}
+
+	if err := d.recurrentTasks(); err != nil {
+		return err
+	}
+
+	// TODO: more smart way
+	if l != len(d.WholeTasks) {
+		for _, t := range d.WholeTasks {
+			if err := task.ParseRecurrence(t); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := d.WholeTasks.Sort(
+		todotxt.SortPriorityAsc,
+		todotxt.SortDueDateAsc,
+		todotxt.SortTodoTextAsc,
+	); err != nil {
+		return err
 	}
 
 	d.Projects = []*Project{}

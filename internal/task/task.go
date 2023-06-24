@@ -50,11 +50,11 @@ func ToDone(task *todotxt.Task) {
 func ParseRecurrence(task *todotxt.Task) error {
 	if task.HasAdditionalTags() {
 		if v, ok := task.AdditionalTags[KeyRec]; ok {
-      num, err := strconv.Atoi(v[:len(KeyRec)-1])
+      num, err := strconv.Atoi(v[:len(v)-1])
 			if err != nil {
 				return err
 			}
-			period := v[len(KeyRec)-1:]
+			period := v[len(v)-1:]
 			var dur time.Duration
 			switch period {
 			case "d":
