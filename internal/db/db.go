@@ -96,6 +96,34 @@ func copyTask(t todotxt.Task) todotxt.Task {
 	return newTask
 }
 
+func sortTaskList(taskList todotxt.TaskList) {
+	sort.Slice(taskList, func(i, j int) bool {
+		if taskList[i].Completed != taskList[j].Completed {
+			return !taskList[i].Completed && taskList[j].Completed
+		} else if taskList[i].Priority != taskList[j].Priority {
+			return comparePriority(taskList[i].Priority, taskList[j].Priority)
+		} else if !taskList[i].DueDate.Equal(taskList[j].DueDate) {
+			return taskList[i].DueDate.Before(taskList[j].DueDate)
+		} else {
+			return taskList[i].Todo < taskList[j].Todo
+		}
+	})
+}
+
+func sortTaskReferences(taskList TaskReferences) {
+	sort.Slice(taskList, func(i, j int) bool {
+		if taskList[i].Completed != taskList[j].Completed {
+			return !taskList[i].Completed && taskList[j].Completed
+		} else if taskList[i].Priority != taskList[j].Priority {
+			return comparePriority(taskList[i].Priority, taskList[j].Priority)
+		} else if !taskList[i].DueDate.Equal(taskList[j].DueDate) {
+			return taskList[i].DueDate.Before(taskList[j].DueDate)
+		} else {
+			return taskList[i].Todo < taskList[j].Todo
+		}
+	})
+}
+
 func (d *Database) SaveData() error {
 	if err := d.saveData(d.LivingTasks, ImportPath); err != nil {
 		return err
@@ -118,9 +146,7 @@ func (d *Database) saveData(taskList TaskReferences, filePath string) error {
 		}
 	}
 
-	if err := tasklist.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
-		return err
-	}
+	sortTaskList(tasklist)
 
 	fp, err := os.Create(filePath)
 	if err != nil {
@@ -136,6 +162,16 @@ func (d *Database) saveData(taskList TaskReferences, filePath string) error {
 	}
 
 	return nil
+}
+
+func comparePriority(p1, p2 string) bool {
+	if p1 == "" {
+		return false
+	} else if p2 == "" {
+		return true
+	} else {
+		return p1 < p2
+	}
 }
 
 func (d *Database) LoadData() error {
@@ -183,9 +219,7 @@ func (d *Database) loadData(filePath string) (TaskReferences, error) {
 		}
 	}
 
-	if err = taskList.Sort(todotxt.SortPriorityAsc, todotxt.SortDueDateAsc); err != nil {
-		return nil, err
-	}
+	sortTaskReferences(taskList)
 
 	return taskList, nil
 }
@@ -251,13 +285,7 @@ func (d *Database) RefreshProjects() error {
 		return err
 	}
 
-	if err := d.LivingTasks.Sort(
-		todotxt.SortPriorityAsc,
-		todotxt.SortDueDateAsc,
-		todotxt.SortTodoTextAsc,
-	); err != nil {
-		return err
-	}
+	sortTaskReferences(d.LivingTasks)
 
 	d.Projects = []*Project{}
 
