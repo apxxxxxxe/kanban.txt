@@ -10,6 +10,7 @@ import (
 
 const (
 	KeyRec  = "rec"
+  KeyNote = "note"
 )
 
 func ToTodo(task *todotxt.Task) {

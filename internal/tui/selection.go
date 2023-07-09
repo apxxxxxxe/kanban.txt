@@ -75,6 +75,7 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 			todoCompletedDate,
 			todoCreatedDate,
 			todoRecurrence,
+			todoNote,
 		}
 		description := [][]string{}
 		for _, field := range fields {

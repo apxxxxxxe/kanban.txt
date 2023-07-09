@@ -16,6 +16,7 @@ const (
 	todoCompletedDate = "CompletedDate"
 	todoCreatedDate   = "CreatedDate"
 	todoRecurrence    = "Recurrence"
+	todoNote          = "Note"
 )
 
 func getTaskField(t *todotxt.Task, field string) string {
@@ -42,6 +43,8 @@ func getTaskField(t *todotxt.Task, field string) string {
 		return timeToStr(t.CreatedDate)
 	case todoRecurrence:
 		return t.AdditionalTags[task.KeyRec]
+	case todoNote:
+		return t.AdditionalTags[task.KeyNote]
 	default:
 		panic("invalid field: " + field)
 	}
@@ -76,6 +79,11 @@ func setTaskField(t *todotxt.Task, field, value string) {
 			t.AdditionalTags = map[string]string{}
 		}
 		t.AdditionalTags[task.KeyRec] = value
+	case todoNote:
+		if t.AdditionalTags == nil {
+			t.AdditionalTags = map[string]string{}
+		}
+		t.AdditionalTags[task.KeyNote] = value
 	default:
 		panic("invalid field: " + field)
 	}
