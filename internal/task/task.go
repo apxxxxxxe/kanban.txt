@@ -3,6 +3,7 @@ package task
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/1set/todotxt"
@@ -10,7 +11,7 @@ import (
 
 const (
 	KeyRec  = "rec"
-  KeyNote = "note"
+	KeyNote = "note"
 )
 
 func ToTodo(task *todotxt.Task) {
@@ -48,9 +49,14 @@ func ToDone(task *todotxt.Task) {
 }
 
 func ParseRecurrence(task *todotxt.Task) (time.Time, error) {
+	isRepeatOnCompletion := false
 	nextOpenTime := time.Time{}
 	if task.HasAdditionalTags() {
 		if v, ok := task.AdditionalTags[KeyRec]; ok {
+			isRepeatOnCompletion = strings.HasSuffix(v, "*")
+			if isRepeatOnCompletion {
+				v = v[:len(v)-1]
+			}
 			num, err := strconv.Atoi(v[:len(v)-1])
 			if err != nil {
 				return nextOpenTime, err
@@ -69,7 +75,11 @@ func ParseRecurrence(task *todotxt.Task) (time.Time, error) {
 			default:
 				return nextOpenTime, errors.New("invalid recurrence period")
 			}
-			nextOpenTime = task.CreatedDate.Add(dur)
+			if isRepeatOnCompletion && task.Completed {
+				nextOpenTime = task.CompletedDate.Add(dur)
+			} else {
+				nextOpenTime = task.CreatedDate.Add(dur)
+			}
 		}
 	}
 	return nextOpenTime, nil
