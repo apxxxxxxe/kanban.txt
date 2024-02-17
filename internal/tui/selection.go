@@ -32,9 +32,9 @@ func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
 		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.LivingTasks))},
 		{"name", project.ProjectName},
 		{"len", fmt.Sprintf("%d", len(project.TodoTasks)+len(project.DoingTasks)+len(project.DoneTasks))},
-		{"todo", project.TodoTasks.String()},
-		{"doing", project.DoingTasks.String()},
-		{"done", project.DoneTasks.String()},
+		{"todo", fmt.Sprintf("%d", len(project.TodoTasks))},
+		{"doing", fmt.Sprintf("%d", len(project.DoingTasks))},
+		{"done", fmt.Sprintf("%d", len(project.DoneTasks))},
 	}
 	t.Descript(description)
 }
