@@ -308,7 +308,9 @@ func (d *Database) RefreshProjects() error {
 	}
 
 	getDoneTasks := func(tasklist TaskReferences) TaskReferences {
-		return *tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+		tasks := tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+		tasks.Sort(todotxt.SortCompletedDateDesc)
+		return *tasks
 	}
 
 	list := map[string]func(TaskReferences) TaskReferences{
