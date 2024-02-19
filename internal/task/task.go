@@ -14,6 +14,27 @@ const (
 	KeyNote = "note"
 )
 
+func ReplaceInvalidTag(field string) string {
+	validTags := []string{
+		KeyRec,
+		KeyNote,
+	}
+	if !strings.Contains(field, ":") {
+		return field
+	}
+	isInvalid := true
+	for _, tag := range validTags {
+		if strings.HasPrefix(field, tag+":") {
+			isInvalid = false
+			break
+		}
+	}
+	if isInvalid {
+    return strings.Replace(field, ":", "\\:", 1)
+	}
+	return field
+}
+
 func ToTodo(task *todotxt.Task) {
 	for i, c := range task.Contexts {
 		if c == "doing" {

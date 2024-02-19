@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	"github.com/1set/todotxt"
@@ -355,7 +356,14 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		switch t.InputWidget.Mode {
 		case 'n':
 			// New Task
-			task, err := todotxt.ParseTask(input)
+			taskFields := []string{}
+			for _, field := range strings.Split(input, " ") {
+				if field == "" {
+					continue
+				}
+				taskFields = append(taskFields, tsk.ReplaceInvalidTag(field)+" ")
+			}
+			task, err := todotxt.ParseTask(strings.Join(taskFields, " "))
 			if err != nil {
 				t.Notify(err.Error(), true)
 				return nil
