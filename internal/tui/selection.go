@@ -15,20 +15,19 @@ func (t *Tui) setSelectedFunc() {
 	t.DonePane.SetSelectionChangedFunc(t.donePaneSelectionChangedFunc)
 }
 
-func (t *Tui) reDrawProjects() (*db.Project, int) {
-	project, ok := t.ProjectPane.GetCell(t.ProjectPane.GetSelection()).Reference.(*db.Project)
-	if !ok {
-		panic("invalid reference")
-	}
-
+func (t *Tui) reDrawProjects() *db.Project {
 	_, index := t.getCurrentDay()
-	tasks := project.TasksByDate[index]
+	projects := t.DB.ProjectsByDate[index]
 
-	t.TodoPane.ResetCell(tasks.TodoTasks)
-	t.DoingPane.ResetCell(tasks.DoingTasks)
-	t.DonePane.ResetCell(tasks.DoneTasks)
+  // TODO: 見た目との分離; 現在はProjectsByDateの各要素間でProjectとその並びが同一であることを前提にしている
+	projectIndex, _ := t.ProjectPane.GetSelection()
+	project := projects[projectIndex]
 
-	return project, index
+	t.TodoPane.ResetCell(project.TodoTasks)
+	t.DoingPane.ResetCell(project.DoingTasks)
+	t.DonePane.ResetCell(project.DoneTasks)
+
+	return project
 }
 
 func (t *Tui) daysTableSelectionChangedFunc(row, col int) {
@@ -40,16 +39,15 @@ func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
 		return
 	}
 
-	project, index := t.reDrawProjects()
-	tasks := project.TasksByDate[index]
+	project := t.reDrawProjects()
 
 	description := [][]string{
 		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.LivingTasks))},
 		{"name", project.ProjectName},
-		{"len", fmt.Sprintf("%d", len(tasks.TodoTasks)+len(tasks.DoingTasks)+len(tasks.DoneTasks))},
-		{"todo", fmt.Sprintf("%d", len(tasks.TodoTasks))},
-		{"doing", fmt.Sprintf("%d", len(tasks.DoingTasks))},
-		{"done", fmt.Sprintf("%d", len(tasks.DoneTasks))},
+		{"len", fmt.Sprintf("%d", len(project.TodoTasks)+len(project.DoingTasks)+len(project.DoneTasks))},
+		{"todo", fmt.Sprintf("%d", len(project.TodoTasks))},
+		{"doing", fmt.Sprintf("%d", len(project.DoingTasks))},
+		{"done", fmt.Sprintf("%d", len(project.DoneTasks))},
 	}
 	t.Descript(description)
 }

@@ -18,14 +18,14 @@ func (t *ProjectTable) GetCurrentProject() *db.Project {
 	return p
 }
 
-func (t *ProjectTable) ResetCell(projects []*db.Project, index int) {
+func (t *ProjectTable) ResetCell(projects []*db.Project) {
 	t.Clear()
 	for _, project := range projects {
-		t.setCell(project, index)
+		t.setCell(project)
 	}
 }
 
-func (t *ProjectTable) setCell(p *db.Project, index int) *tview.TableCell {
+func (t *ProjectTable) setCell(p *db.Project) *tview.TableCell {
 	maxRow := t.GetRowCount()
 	targetRow := maxRow
 	for i := 0; i < maxRow; i++ {
@@ -41,7 +41,7 @@ func (t *ProjectTable) setCell(p *db.Project, index int) *tview.TableCell {
 
 	cell := tview.NewTableCell(p.ProjectName).SetReference(p)
 
-	if len(p.TasksByDate[index].TodoTasks)+len(p.TasksByDate[index].DoingTasks) == 0 {
+	if len(p.TodoTasks)+len(p.DoingTasks) == 0 {
 		cell.SetTextColor(tcell.ColorGray)
 	}
 
