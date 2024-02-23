@@ -156,6 +156,11 @@ func (t *Tui) Descript(desc [][]string) {
 	}
 }
 
+func (t *Tui) getSelectingDate() time.Time {
+	_, col := t.DaysTable.GetSelection()
+	return time.Now().AddDate(0, 0, col-db.DayCount/2)
+}
+
 func (t *Tui) getCurrentDay() (int, int) {
 	_, col := t.DaysTable.GetSelection()
 	return col - db.DayCount/2, col
