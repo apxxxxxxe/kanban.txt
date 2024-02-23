@@ -31,20 +31,16 @@ var (
 )
 
 type Database struct {
-	LivingTasks   TaskReferences
-	ArchivedTasks TaskReferences
-	Projects      []*Project
+	LivingTasks    TaskReferences
+	ArchivedTasks  TaskReferences
+	ProjectsByDate [][]*Project
 }
 
 type Project struct {
 	ProjectName string
-	TasksByDate []Tasks
-}
-
-type Tasks struct {
-	TodoTasks  TaskReferences
-	DoingTasks TaskReferences
-	DoneTasks  TaskReferences
+	TodoTasks   TaskReferences
+	DoingTasks  TaskReferences
+	DoneTasks   TaskReferences
 }
 
 func getDataPath() string {
@@ -84,7 +80,7 @@ func displayContexts(t *todotxt.Task) string {
 	return raw
 }
 
-func GetProjectName(t todotxt.Task) string {
+func getProjectName(t todotxt.Task) string {
 	projects := t.Projects
 	if len(projects) == 0 || projects == nil {
 		panic("no project")
@@ -193,7 +189,7 @@ func (d *Database) LoadData() error {
 		return err
 	}
 
-	d.Projects = []*Project{}
+	d.ProjectsByDate = make([][]*Project, DayCount)
 	return nil
 }
 
@@ -236,7 +232,7 @@ func (d *Database) recurrentTasks() error {
 	doneTasks := *d.LivingTasks.Filter(todotxt.FilterCompleted)
 	doneTasks.Sort(todotxt.SortCreatedDateDesc)
 	for _, t := range doneTasks {
-		key := t.Todo + t.Priority + GetProjectName(*t)
+		key := t.Todo + t.Priority + getProjectName(*t)
 		if _, ok := tasks[key]; !ok {
 			tasks[key] = t
 		}
@@ -253,7 +249,7 @@ func (d *Database) recurrentTasks() error {
 					Filter(todotxt.FilterNotCompleted).
 					Filter(filterByTodo(t.Todo)).
 					Filter(todotxt.FilterByPriority(t.Priority)).
-					Filter(todotxt.FilterByProject(GetProjectName(*t))).
+					Filter(todotxt.FilterByProject(getProjectName(*t))).
 					Filter(filterHasSameContexts(*t))
 				if len(*sameTasks) == 0 {
 					newTask := copyTask(*t)
@@ -316,7 +312,7 @@ func (d *Database) RefreshProjects() error {
 
 	sortTaskReferences(d.LivingTasks)
 
-	d.Projects = []*Project{}
+	d.ProjectsByDate = make([][]*Project, DayCount)
 
 	if len(d.LivingTasks) == 0 {
 		return nil
@@ -351,55 +347,61 @@ func (d *Database) RefreshProjects() error {
 		done:  getDoneTasks,
 	}
 
-	projectList := map[string]*Project{}
-	for key, fn := range list {
-		for i := 0; i < DayCount; i++ {
+	projectsByDate := make([][]*Project, DayCount)
+	for i := 0; i < DayCount; i++ {
+		projectList := map[string]*Project{}
+		for key, fn := range list {
 			for _, task := range fn(d.LivingTasks, i-DayCount/2) {
-				projectName := GetProjectName(*task)
+				projectName := getProjectName(*task)
 				project, ok := projectList[projectName]
 				if !ok {
-					project = &Project{ProjectName: projectName, TasksByDate: make([]Tasks, DayCount)}
-					d.Projects = append(d.Projects, project)
+					project = &Project{ProjectName: projectName}
 					projectList[projectName] = project
 				}
 
 				switch key {
 				case todo:
-					project.TasksByDate[i].TodoTasks = append(project.TasksByDate[i].TodoTasks, task)
+					project.TodoTasks = append(project.TodoTasks, task)
 				case doing:
-					project.TasksByDate[i].DoingTasks = append(project.TasksByDate[i].DoingTasks, task)
+					project.DoingTasks = append(project.DoingTasks, task)
 				case done:
-					project.TasksByDate[i].DoneTasks = append(project.TasksByDate[i].DoneTasks, task)
+					project.DoneTasks = append(project.DoneTasks, task)
 				}
 			}
 		}
-	}
 
-	// sort projects
-	sort.Slice(d.Projects, func(i, j int) bool {
-		// sort by project name
-		// noProject is always the first
-		if d.Projects[i].ProjectName == AllTasks {
-			return true
-		} else if d.Projects[j].ProjectName == AllTasks {
-			return false
-		} else if d.Projects[i].ProjectName == NoProject {
-			return true
-		} else if d.Projects[j].ProjectName == NoProject {
-			return false
-		} else {
-			return d.Projects[i].ProjectName < d.Projects[j].ProjectName
+		projects := []*Project{}
+		for _, p := range projectList {
+			projects = append(projects, p)
 		}
-	})
+		allTaskProject := &Project{
+			ProjectName: AllTasks,
+			TodoTasks:   getTodoTasks(d.LivingTasks, i-DayCount/2),
+			DoingTasks:  getDoingTasks(d.LivingTasks, i-DayCount/2),
+			DoneTasks:   getDoneTasks(d.LivingTasks, i-DayCount/2),
+		}
+		projects = append(projects, allTaskProject)
 
-	// add AllTasks to the first
-	allTaskProject := &Project{ProjectName: AllTasks, TasksByDate: make([]Tasks, DayCount)}
-	for i := 0; i < DayCount; i++ {
-		allTaskProject.TasksByDate[i].TodoTasks = getTodoTasks(d.LivingTasks, i-DayCount/2)
-		allTaskProject.TasksByDate[i].DoingTasks = getDoingTasks(d.LivingTasks, i-DayCount/2)
-		allTaskProject.TasksByDate[i].DoneTasks = getDoneTasks(d.LivingTasks, i-DayCount/2)
+		// sort projects
+		sort.Slice(projects, func(i, j int) bool {
+			// sort by project name
+			// noProject is always the first
+			if projects[i].ProjectName == AllTasks {
+				return true
+			} else if projects[j].ProjectName == AllTasks {
+				return false
+			} else if projects[i].ProjectName == NoProject {
+				return true
+			} else if projects[j].ProjectName == NoProject {
+				return false
+			} else {
+				return projects[i].ProjectName < projects[j].ProjectName
+			}
+		})
+
+		projectsByDate[i] = projects
 	}
-	d.Projects = append([]*Project{allTaskProject}, d.Projects...)
+	d.ProjectsByDate = projectsByDate
 
 	if err := d.SaveData(); err != nil {
 		return err
