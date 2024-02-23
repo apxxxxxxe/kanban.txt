@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/pkg/errors"
@@ -13,6 +14,7 @@ type Tui struct {
 	DB                 *db.Database
 	App                *tview.Application
 	Pages              *tview.Pages
+	DaysTable          *tview.Table
 	ProjectPane        *ProjectTable
 	TodoPane           *TodoTable
 	DoingPane          *TodoTable
@@ -60,6 +62,7 @@ func NewTui() *Tui {
 		DB:                 &db.Database{},
 		App:                tview.NewApplication(),
 		Pages:              tview.NewPages(),
+		DaysTable:          tview.NewTable().SetBorders(false).SetSelectable(false, true),
 		ProjectPane:        &ProjectTable{newTable(projectPaneTitle)},
 		TodoPane:           &TodoTable{newTable(todoPaneTitle)},
 		DoingPane:          &TodoTable{newTable(doingPaneTitle)},
@@ -69,25 +72,38 @@ func NewTui() *Tui {
 		HelpWidget:         newTextView(helpWidgetTitle).SetTextAlign(1).SetDynamicColors(true),
 		InputWidget:        &InputBox{InputField: newInputField(), Mode: 0},
 		FocusStack:         []*tview.Box{},
-    EditingCell:        nil,
+		EditingCell:        nil,
 		ConfirmationStatus: defaultStatus,
 		CurrentLeftTable:   enumTodoPane,
 		IsLoading:          false,
 	}
 
-	mainFlex := tview.NewFlex().SetDirection(tview.FlexColumn).
-		AddItem(tui.ProjectPane, 0, 1, false).
-		AddItem(
-			tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-					AddItem(tui.TodoPane, 0, 1, false).
-					AddItem(tui.DoingPane, 0, 1, false).
-					AddItem(tui.DonePane, 0, 1, false),
-					0, 3, false).
-				AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-					AddItem(tui.DescriptionWidget, 0, 2, false).
-					AddItem(tui.InfoWidget, 0, 1, false),
-					0, 1, false), 0, 3, false)
+	const NonZero = 1
+	daysLabels := []string{}
+	now := time.Now()
+	for i := -db.DayCount / 2; i <= db.DayCount/2; i++ {
+		daysLabels = append(daysLabels, now.AddDate(0, 0, i).Format("2006-01-02"))
+	}
+	for i, label := range daysLabels {
+		tui.DaysTable.SetCell(0, i, tview.NewTableCell(label).SetAlign(tview.AlignCenter).SetExpansion(NonZero))
+	}
+	tui.DaysTable.Select(0, db.DayCount/2)
+
+	mainFlex := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(tui.DaysTable, 1, 0, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+			AddItem(tui.ProjectPane, 0, 1, false).
+			AddItem(
+				tview.NewFlex().SetDirection(tview.FlexRow).
+					AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+						AddItem(tui.TodoPane, 0, 1, false).
+						AddItem(tui.DoingPane, 0, 1, false).
+						AddItem(tui.DonePane, 0, 1, false),
+						0, 3, false).
+					AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+						AddItem(tui.DescriptionWidget, 0, 2, false).
+						AddItem(tui.InfoWidget, 0, 1, false),
+						0, 1, false), 0, 3, false), 0, 1, false)
 
 	inputFlex := tview.NewFlex().
 		AddItem(nil, 0, 1, false).
@@ -140,12 +156,18 @@ func (t *Tui) Descript(desc [][]string) {
 	}
 }
 
+func (t *Tui) getCurrentDay() (int, int) {
+	_, col := t.DaysTable.GetSelection()
+	return col - db.DayCount/2, col
+}
+
 func (t *Tui) refreshProjects() {
 	if err := t.DB.RefreshProjects(); err != nil {
 		t.Notify(err.Error(), true)
 	}
 	row, col := t.ProjectPane.GetSelection()
-	t.ProjectPane.ResetCell(t.DB.Projects)
+	_, index := t.getCurrentDay()
+	t.ProjectPane.ResetCell(t.DB.Projects, index)
 	if row >= t.ProjectPane.GetRowCount() {
 		row = t.ProjectPane.GetRowCount() - 1
 	}
@@ -183,7 +205,7 @@ func (t *Tui) Run() error {
 		return err
 	}
 
-	t.ProjectPane.ResetCell(t.DB.Projects)
+	t.ProjectPane.ResetCell(t.DB.Projects, db.DayCount/2)
 	t.ProjectPane.Select(0, 0) // len(t.DB.Projects) is usually > 0
 
 	t.doingPaneBlurFunc()

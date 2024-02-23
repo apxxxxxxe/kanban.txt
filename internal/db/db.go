@@ -18,6 +18,8 @@ const (
 	SavePrefixFeed  = "f_"
 	NoProject       = "NoProject"
 	AllTasks        = "AllTasks"
+	allDay          = -50
+	DayCount        = 7
 )
 
 var (
@@ -36,9 +38,13 @@ type Database struct {
 
 type Project struct {
 	ProjectName string
-	TodoTasks   TaskReferences
-	DoingTasks  TaskReferences
-	DoneTasks   TaskReferences
+	TasksByDate []Tasks
+}
+
+type Tasks struct {
+	TodoTasks  TaskReferences
+	DoingTasks TaskReferences
+	DoneTasks  TaskReferences
 }
 
 func getDataPath() string {
@@ -280,6 +286,29 @@ func filterHasSameContexts(a todotxt.Task) todotxt.Predicate {
 	}
 }
 
+func timeToDate(t *time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+}
+
+func FilterCompareDate(date time.Time) todotxt.Predicate {
+	return func(t todotxt.Task) bool {
+		taskCreated := timeToDate(&t.CreatedDate)
+		taskDue := timeToDate(&t.DueDate)
+		date = timeToDate(&date)
+
+		createdComp := taskCreated.Compare(date)
+		dueComp := taskDue.Compare(date)
+
+		// dateは作成日以降である
+		isOkCreated := createdComp <= 0
+
+		// dateは期限前である or 期限がない
+		isOkDue := !t.HasDueDate() || dueComp >= 0
+
+		return isOkCreated && isOkDue
+	}
+}
+
 func (d *Database) RefreshProjects() error {
 	if err := d.recurrentTasks(); err != nil {
 		return err
@@ -299,21 +328,24 @@ func (d *Database) RefreshProjects() error {
 		done  = "done"
 	)
 
-	getTodoTasks := func(tasklist TaskReferences) TaskReferences {
-		return *tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+	getTodoTasks := func(tasklist TaskReferences, day int) TaskReferences {
+		date := time.Now().AddDate(0, 0, day)
+		return *tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).Filter(FilterCompareDate(date))
 	}
 
-	getDoingTasks := func(tasklist TaskReferences) TaskReferences {
-		return *tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing"))
+	getDoingTasks := func(tasklist TaskReferences, day int) TaskReferences {
+		date := time.Now().AddDate(0, 0, day)
+		return *tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing")).Filter(FilterCompareDate(date))
 	}
 
-	getDoneTasks := func(tasklist TaskReferences) TaskReferences {
-		tasks := tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing")))
+	getDoneTasks := func(tasklist TaskReferences, day int) TaskReferences {
+		date := time.Now().AddDate(0, 0, day)
+		tasks := tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).Filter(FilterCompareDate(date))
 		tasks.Sort(todotxt.SortCompletedDateDesc)
 		return *tasks
 	}
 
-	list := map[string]func(TaskReferences) TaskReferences{
+	list := map[string]func(TaskReferences, int) TaskReferences{
 		todo:  getTodoTasks,
 		doing: getDoingTasks,
 		done:  getDoneTasks,
@@ -321,22 +353,24 @@ func (d *Database) RefreshProjects() error {
 
 	projectList := map[string]*Project{}
 	for key, fn := range list {
-		for _, task := range fn(d.LivingTasks) {
-			projectName := GetProjectName(*task)
-			project, ok := projectList[projectName]
-			if !ok {
-				project = &Project{ProjectName: projectName}
-				d.Projects = append(d.Projects, project)
-				projectList[projectName] = project
-			}
+		for i := 0; i < DayCount; i++ {
+			for _, task := range fn(d.LivingTasks, i-DayCount/2) {
+				projectName := GetProjectName(*task)
+				project, ok := projectList[projectName]
+				if !ok {
+					project = &Project{ProjectName: projectName, TasksByDate: make([]Tasks, DayCount)}
+					d.Projects = append(d.Projects, project)
+					projectList[projectName] = project
+				}
 
-			switch key {
-			case todo:
-				project.TodoTasks = append(project.TodoTasks, task)
-			case doing:
-				project.DoingTasks = append(project.DoingTasks, task)
-			case done:
-				project.DoneTasks = append(project.DoneTasks, task)
+				switch key {
+				case todo:
+					project.TasksByDate[i].TodoTasks = append(project.TasksByDate[i].TodoTasks, task)
+				case doing:
+					project.TasksByDate[i].DoingTasks = append(project.TasksByDate[i].DoingTasks, task)
+				case done:
+					project.TasksByDate[i].DoneTasks = append(project.TasksByDate[i].DoneTasks, task)
+				}
 			}
 		}
 	}
@@ -345,7 +379,11 @@ func (d *Database) RefreshProjects() error {
 	sort.Slice(d.Projects, func(i, j int) bool {
 		// sort by project name
 		// noProject is always the first
-		if d.Projects[i].ProjectName == NoProject {
+		if d.Projects[i].ProjectName == AllTasks {
+			return true
+		} else if d.Projects[j].ProjectName == AllTasks {
+			return false
+		} else if d.Projects[i].ProjectName == NoProject {
 			return true
 		} else if d.Projects[j].ProjectName == NoProject {
 			return false
@@ -355,11 +393,13 @@ func (d *Database) RefreshProjects() error {
 	})
 
 	// add AllTasks to the first
-	allTasks := &Project{ProjectName: AllTasks}
-	allTasks.TodoTasks = getTodoTasks(d.LivingTasks)
-	allTasks.DoingTasks = getDoingTasks(d.LivingTasks)
-	allTasks.DoneTasks = getDoneTasks(d.LivingTasks)
-	d.Projects = append([]*Project{allTasks}, d.Projects...)
+	allTaskProject := &Project{ProjectName: AllTasks, TasksByDate: make([]Tasks, DayCount)}
+	for i := 0; i < DayCount; i++ {
+		allTaskProject.TasksByDate[i].TodoTasks = getTodoTasks(d.LivingTasks, i-DayCount/2)
+		allTaskProject.TasksByDate[i].DoingTasks = getDoingTasks(d.LivingTasks, i-DayCount/2)
+		allTaskProject.TasksByDate[i].DoneTasks = getDoneTasks(d.LivingTasks, i-DayCount/2)
+	}
+	d.Projects = append([]*Project{allTaskProject}, d.Projects...)
 
 	if err := d.SaveData(); err != nil {
 		return err

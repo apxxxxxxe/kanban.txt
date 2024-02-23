@@ -8,10 +8,31 @@ import (
 )
 
 func (t *Tui) setSelectedFunc() {
+	t.DaysTable.SetSelectionChangedFunc(t.daysTableSelectionChangedFunc)
 	t.ProjectPane.SetSelectionChangedFunc(t.projectPaneSelectionChangedFunc)
 	t.TodoPane.SetSelectionChangedFunc(t.todoPaneSelectionChangedFunc)
 	t.DoingPane.SetSelectionChangedFunc(t.doingPaneSelectionChangedFunc)
 	t.DonePane.SetSelectionChangedFunc(t.donePaneSelectionChangedFunc)
+}
+
+func (t *Tui) reDrawProjects() (*db.Project, int) {
+	project, ok := t.ProjectPane.GetCell(t.ProjectPane.GetSelection()).Reference.(*db.Project)
+	if !ok {
+		panic("invalid reference")
+	}
+
+	_, index := t.getCurrentDay()
+	tasks := project.TasksByDate[index]
+
+	t.TodoPane.ResetCell(tasks.TodoTasks)
+	t.DoingPane.ResetCell(tasks.DoingTasks)
+	t.DonePane.ResetCell(tasks.DoneTasks)
+
+	return project, index
+}
+
+func (t *Tui) daysTableSelectionChangedFunc(row, col int) {
+	t.reDrawProjects()
 }
 
 func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
@@ -19,22 +40,16 @@ func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
 		return
 	}
 
-	project, ok := t.ProjectPane.GetCell(row, col).Reference.(*db.Project)
-	if !ok {
-		panic("invalid reference")
-	}
-
-	t.TodoPane.ResetCell(project.TodoTasks)
-	t.DoingPane.ResetCell(project.DoingTasks)
-	t.DonePane.ResetCell(project.DoneTasks)
+	project, index := t.reDrawProjects()
+	tasks := project.TasksByDate[index]
 
 	description := [][]string{
 		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.LivingTasks))},
 		{"name", project.ProjectName},
-		{"len", fmt.Sprintf("%d", len(project.TodoTasks)+len(project.DoingTasks)+len(project.DoneTasks))},
-		{"todo", fmt.Sprintf("%d", len(project.TodoTasks))},
-		{"doing", fmt.Sprintf("%d", len(project.DoingTasks))},
-		{"done", fmt.Sprintf("%d", len(project.DoneTasks))},
+		{"len", fmt.Sprintf("%d", len(tasks.TodoTasks)+len(tasks.DoingTasks)+len(tasks.DoneTasks))},
+		{"todo", fmt.Sprintf("%d", len(tasks.TodoTasks))},
+		{"doing", fmt.Sprintf("%d", len(tasks.DoingTasks))},
+		{"done", fmt.Sprintf("%d", len(tasks.DoneTasks))},
 	}
 	t.Descript(description)
 }

@@ -8,6 +8,7 @@ import (
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 
 func (t *Tui) setKeybind() {
 	t.App.SetInputCapture(t.AppInputCaptureFunc)
+	t.DaysTable.SetInputCapture(t.daysTableInputCaptureFunc)
 	t.ProjectPane.SetInputCapture(t.projectPaneInputCaptureFunc)
 	t.TodoPane.SetInputCapture(t.todoPaneInputCaptureFunc)
 	t.DoingPane.SetInputCapture(t.doingPaneInputCaptureFunc)
@@ -121,8 +123,28 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 }
 
+func (t *Tui) daysTableInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
+	switch event.Rune() {
+	case 'j':
+		t.popFocus()
+	}
+	return event
+}
+
+func (t *Tui) moveToDaysTable(table *tview.Table) bool {
+	if row, _ := table.GetSelection(); row == 0 {
+		t.pushFocus(t.DaysTable.Box)
+		return true
+	}
+	return false
+}
+
 func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
+	case 'k':
+		if t.moveToDaysTable(t.ProjectPane.Table) {
+			return nil
+		}
 	case 'l':
 		row, _ := t.TodoPane.GetSelection()
 		n := t.TodoPane.GetRowCount()
@@ -158,6 +180,10 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
+	case 'k':
+		if t.moveToDaysTable(t.TodoPane.Table) {
+			return nil
+		}
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
 			if t.TodoPane.GetRowCount() > 0 {
@@ -219,6 +245,10 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
+	case 'k':
+		if t.moveToDaysTable(t.DoingPane.Table) {
+			return nil
+		}
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
 			if t.DoingPane.GetRowCount() > 0 {
@@ -287,6 +317,10 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
+	case 'k':
+		if t.moveToDaysTable(t.DonePane.Table) {
+			return nil
+		}
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
 			if t.DonePane.GetRowCount() > 0 {
@@ -393,7 +427,8 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		case 'p':
 			// New Project
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
-			t.ProjectPane.ResetCell(t.DB.Projects)
+			_, col := t.DaysTable.GetSelection()
+			t.ProjectPane.ResetCell(t.DB.Projects, col)
 
 		case 'R':
 			// Rename Project
