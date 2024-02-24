@@ -94,6 +94,7 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 		for _, field := range fields {
 			description = append(description, []string{field, getTaskField(task, field)})
 		}
+    description = append(description, []string{"contexts", contexts})
 		t.Descript(description)
 	} else {
 		t.Descript(nil)

@@ -5,8 +5,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
-
-	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 )
 
 const (
@@ -48,10 +46,10 @@ func (t *TodoTable) AdjustSelection() {
 	}
 }
 
-func (t *TodoTable) ResetCell(tasklist db.TaskReferences) {
+func (t *TodoTable) ResetCell(tasklist todo.TaskList) {
 	t.Clear()
-	for _, task := range tasklist {
-		t.setCell(task)
+	for i := range tasklist {
+		t.setCell(&tasklist[i])
 	}
 }
 
