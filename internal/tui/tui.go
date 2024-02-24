@@ -167,12 +167,12 @@ func (t *Tui) getCurrentDay() (int, int) {
 }
 
 func (t *Tui) refreshProjects() {
-	if err := t.DB.RefreshProjects(); err != nil {
+  _, index := t.getCurrentDay()
+	if err := t.DB.RefreshProjects(index); err != nil {
 		t.Notify(err.Error(), true)
 	}
 	row, col := t.ProjectPane.GetSelection()
-	_, index := t.getCurrentDay()
-	t.ProjectPane.ResetCell(t.DB.ProjectsByDate[index])
+	t.ProjectPane.ResetCell(t.DB.Projects)
 	if row >= t.ProjectPane.GetRowCount() {
 		row = t.ProjectPane.GetRowCount() - 1
 	}
@@ -206,11 +206,11 @@ func (t *Tui) Run() error {
 	if err := t.DB.LoadData(); err != nil {
 		return err
 	}
-	if err := t.DB.RefreshProjects(); err != nil {
+	if err := t.DB.RefreshProjects(db.DayCount/2); err != nil {
 		return err
 	}
 
-	t.ProjectPane.ResetCell(t.DB.ProjectsByDate[db.DayCount/2])
+	t.ProjectPane.ResetCell(t.DB.Projects)
 	t.ProjectPane.Select(0, 0) // len(t.DB.Projects) is usually > 0
 
 	t.doingPaneBlurFunc()

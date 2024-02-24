@@ -17,9 +17,10 @@ func (t *Tui) setSelectedFunc() {
 
 func (t *Tui) reDrawProjects() *db.Project {
 	_, index := t.getCurrentDay()
-	projects := t.DB.ProjectsByDate[index]
+	t.DB.RefreshProjects(index)
+	projects := t.DB.Projects
 
-  // TODO: 見た目との分離; 現在はProjectsByDateの各要素間でProjectとその並びが同一であることを前提にしている
+	// TODO: 見た目との分離; 現在はProjectsByDateの各要素間でProjectとその並びが同一であることを前提にしている
 	projectIndex, _ := t.ProjectPane.GetSelection()
 	project := projects[projectIndex]
 
@@ -85,7 +86,7 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 			todoTitle,
 			todoContexts,
 			todoCreatedDate,
-      todoMakedDoing,
+			todoMakedDoing,
 			todoDueDate,
 			todoCompletedDate,
 			todoRecurrence,
