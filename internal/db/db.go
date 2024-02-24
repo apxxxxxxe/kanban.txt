@@ -286,12 +286,26 @@ func timeToDate(t *time.Time) time.Time {
 
 func FilterCompareDate(date time.Time) todotxt.Predicate {
 	return func(t todotxt.Task) bool {
+		taskMakedDoing := time.Time{}
+		if v, ok := t.AdditionalTags[task.KeyStartDoing]; ok {
+			var err error
+			taskMakedDoing, err = time.Parse(todotxt.DateLayout, v)
+			if err != nil {
+				panic(err)
+			}
+		}
+		taskMakedDoing = timeToDate(&taskMakedDoing)
+
 		taskCreated := timeToDate(&t.CreatedDate)
 		taskDue := timeToDate(&t.DueDate)
 		date = timeToDate(&date)
 
+		makedDoingComp := taskMakedDoing.Compare(date)
 		createdComp := taskCreated.Compare(date)
 		dueComp := taskDue.Compare(date)
+
+		// dateは作業中である or Doingされていない
+		isOkMakedDoing := makedDoingComp <= 0 || taskMakedDoing.IsZero()
 
 		// dateは作成日以降である
 		isOkCreated := createdComp <= 0
@@ -299,7 +313,7 @@ func FilterCompareDate(date time.Time) todotxt.Predicate {
 		// dateは期限前である or 期限がない
 		isOkDue := !t.HasDueDate() || dueComp >= 0
 
-		return isOkCreated && isOkDue
+		return isOkMakedDoing && isOkCreated && isOkDue
 	}
 }
 

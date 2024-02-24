@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	KeyRec  = "rec"
-	KeyNote = "note"
+	KeyRec        = "rec" // 繰り返し情報
+	KeyNote       = "note" // 備考
+	KeyStartDoing = "doing" // Doingにした日時
 )
 
 func ReplaceInvalidTag(field string) string {
@@ -30,7 +31,7 @@ func ReplaceInvalidTag(field string) string {
 		}
 	}
 	if isInvalid {
-    return strings.Replace(field, ":", "\\:", 1)
+		return strings.Replace(field, ":", "\\:", 1)
 	}
 	return field
 }
@@ -42,10 +43,15 @@ func ToTodo(task *todotxt.Task) {
 			break
 		}
 	}
+
+  if task.AdditionalTags != nil {
+    delete(task.AdditionalTags, KeyStartDoing)
+  }
+
 	task.Reopen()
 }
 
-func ToDoing(task *todotxt.Task) {
+func ToDoing(task *todotxt.Task, date time.Time) {
 	hasDoing := false
 	for _, c := range task.Contexts {
 		if c == "doing" {
@@ -56,6 +62,12 @@ func ToDoing(task *todotxt.Task) {
 	if !hasDoing {
 		task.Contexts = append(task.Contexts, "doing")
 	}
+
+  if task.AdditionalTags == nil {
+    task.AdditionalTags = make(map[string]string)
+  }
+	task.AdditionalTags[KeyStartDoing] = date.Format(todotxt.DateLayout)
+
 	task.Reopen()
 }
 
