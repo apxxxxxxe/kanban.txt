@@ -428,9 +428,9 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		case 'p':
 			// New Project
 			_, index := t.getCurrentDay()
-			currentProject := t.DB.ProjectsByDate[index]
-			currentProject = append(currentProject, &db.Project{ProjectName: input})
-			t.ProjectPane.ResetCell(currentProject)
+			t.DB.RefreshProjects(index)
+			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
+			t.ProjectPane.ResetCell(t.DB.Projects)
 
 		case 'R':
 			// Rename Project
