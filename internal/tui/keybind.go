@@ -158,7 +158,7 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 
 			// TODO: more smart way
 			new := *ref
-			tsk.ToDoing(&new)
+			tsk.ToDoing(&new, t.getSelectingDate())
 			t.DB.LivingTasks.RemoveTask(*ref)
 			t.DB.LivingTasks.AddTask(&new)
 			t.refreshProjects()
@@ -305,7 +305,7 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 
 			// TODO: more smart way
 			new := *ref
-			tsk.ToDoing(&new)
+			tsk.ToDoing(&new, t.getSelectingDate())
 			t.DB.LivingTasks.RemoveTask(*ref)
 			t.DB.LivingTasks.AddTask(&new)
 			t.refreshProjects()
