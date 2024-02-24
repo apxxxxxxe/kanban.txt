@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/1set/todotxt"
-	"github.com/apxxxxxxe/kanban.txt/internal/task"
+	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
+	"github.com/rivo/tview"
 )
 
 const (
@@ -80,14 +81,6 @@ func displayContexts(t *todotxt.Task) string {
 	return raw
 }
 
-func getProjectName(t todotxt.Task) string {
-	projects := t.Projects
-	if len(projects) == 0 || projects == nil {
-		panic("no project")
-	}
-	return projects[0]
-}
-
 func copyTask(t todotxt.Task) todotxt.Task {
 	var newTask todotxt.Task
 	newTask = t
@@ -124,6 +117,18 @@ func sortTaskReferences(taskList todotxt.TaskList) {
 			return taskList[i].Todo < taskList[j].Todo
 		}
 	})
+}
+
+func (d *Database) GetTaskFromTable(t *tview.Table) (*todotxt.Task, error) {
+	cell := t.GetCell(t.GetSelection())
+	if cell == nil {
+		return nil, errors.New("no task selected")
+	}
+	task, ok := cell.GetReference().(*todotxt.Task)
+	if !ok {
+		return nil, errors.New("the selected cell is not a *todotxt.Task")
+	}
+	return d.LivingTasks.GetTask(task.ID)
 }
 
 func (d *Database) SaveData() error {
@@ -223,35 +228,35 @@ func (d *Database) loadData(filePath string) (todotxt.TaskList, error) {
 	return taskList, nil
 }
 
-func (d *Database) recurrentTasks() error {
-	now := time.Now()
+func (d *Database) recurrentTasks(day int) error {
+	date := time.Now().AddDate(0, 0, day)
 	tasks := map[string]todotxt.Task{}
 	doneTasks := d.LivingTasks.Filter(todotxt.FilterCompleted)
 	doneTasks.Sort(todotxt.SortCreatedDateDesc)
 	for _, t := range doneTasks {
-		key := t.Todo + t.Priority + getProjectName(t)
+		key := tsk.GetTaskKey(t)
 		if _, ok := tasks[key]; !ok {
 			tasks[key] = t
 		}
 	}
 
 	for _, t := range tasks {
-		if _, ok := t.AdditionalTags[task.KeyRec]; ok {
-			nextTime, err := task.ParseRecurrence(&t)
+		if _, ok := t.AdditionalTags[tsk.KeyRec]; ok {
+			nextTime, err := tsk.ParseRecurrence(&t)
 			if err != nil {
 				return err
 			}
-			if nextTime.Before(now) {
+			if nextTime.Before(date) {
 				sameTasks := d.LivingTasks.
 					Filter(todotxt.FilterNotCompleted).
 					Filter(filterByTodo(t.Todo)).
 					Filter(todotxt.FilterByPriority(t.Priority)).
-					Filter(todotxt.FilterByProject(getProjectName(t))).
+					Filter(todotxt.FilterByProject(tsk.GetProjectName(t))).
 					Filter(filterHasSameContexts(t))
 				if len(sameTasks) == 0 {
 					newTask := copyTask(t)
 					newTask.Reopen()
-					newTask.CreatedDate = now
+					newTask.CreatedDate = date
 					d.LivingTasks.AddTask(&newTask)
 					d.moveToArchive(t)
 				}
@@ -286,7 +291,7 @@ func timeToDate(t *time.Time) time.Time {
 func FilterCompareDate(date time.Time) todotxt.Predicate {
 	return func(t todotxt.Task) bool {
 		taskMakedDoing := time.Time{}
-		if v, ok := t.AdditionalTags[task.KeyStartDoing]; ok {
+		if v, ok := t.AdditionalTags[tsk.KeyStartDoing]; ok {
 			var err error
 			taskMakedDoing, err = time.Parse(todotxt.DateLayout, v)
 			if err != nil {
@@ -317,7 +322,7 @@ func FilterCompareDate(date time.Time) todotxt.Predicate {
 }
 
 func (d *Database) RefreshProjects(day int) error {
-	if err := d.recurrentTasks(); err != nil {
+	if err := d.recurrentTasks(day); err != nil {
 		return err
 	}
 
@@ -361,7 +366,7 @@ func (d *Database) RefreshProjects(day int) error {
 	projectList := map[string]*Project{}
 	for key, fn := range list {
 		for _, task := range fn(d.LivingTasks, day-DayCount/2) {
-			projectName := getProjectName(task)
+			projectName := tsk.GetProjectName(task)
 			project, ok := projectList[projectName]
 			if !ok {
 				project = &Project{ProjectName: projectName}
