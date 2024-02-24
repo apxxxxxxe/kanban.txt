@@ -10,10 +10,22 @@ import (
 )
 
 const (
-	KeyRec        = "rec" // 繰り返し情報
-	KeyNote       = "note" // 備考
+	KeyRec        = "rec"   // 繰り返し情報
+	KeyNote       = "note"  // 備考
 	KeyStartDoing = "doing" // Doingにした日時
 )
+
+func GetProjectName(t todotxt.Task) string {
+	projects := t.Projects
+	if len(projects) == 0 || projects == nil {
+		panic("no project")
+	}
+	return projects[0]
+}
+
+func GetTaskKey(t todotxt.Task) string {
+	return t.Todo + t.Priority + GetProjectName(t)
+}
 
 func ReplaceInvalidTag(field string) string {
 	validTags := []string{
@@ -44,9 +56,9 @@ func ToTodo(task *todotxt.Task) {
 		}
 	}
 
-  if task.AdditionalTags != nil {
-    delete(task.AdditionalTags, KeyStartDoing)
-  }
+	if task.AdditionalTags != nil {
+		delete(task.AdditionalTags, KeyStartDoing)
+	}
 
 	task.Reopen()
 }
@@ -63,9 +75,9 @@ func ToDoing(task *todotxt.Task, date time.Time) {
 		task.Contexts = append(task.Contexts, "doing")
 	}
 
-  if task.AdditionalTags == nil {
-    task.AdditionalTags = make(map[string]string)
-  }
+	if task.AdditionalTags == nil {
+		task.AdditionalTags = make(map[string]string)
+	}
 	task.AdditionalTags[KeyStartDoing] = date.Format(todotxt.DateLayout)
 
 	task.Reopen()

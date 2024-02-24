@@ -61,30 +61,22 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		// add or increment priority
 		var cellText string
 		var task *todotxt.Task
-		var ok bool
+		var err error
 		if t.TodoPane.HasFocus() {
-			cell := t.TodoPane.GetCell(t.TodoPane.GetSelection())
-			cellText = cell.Text
-			task, ok = cell.GetReference().(*todotxt.Task)
-			if !ok {
-				panic("AppInputCaptureFunc: ref is not todotxt.Task")
-			}
+			cellText = t.TodoPane.GetCell(t.TodoPane.GetSelection()).Text
+			task, err = t.DB.GetTaskFromTable(t.TodoPane.Table)
 		} else if t.DoingPane.HasFocus() {
-			cell := t.DoingPane.GetCell(t.DoingPane.GetSelection())
-			cellText = cell.Text
-			task, ok = cell.GetReference().(*todotxt.Task)
-			if !ok {
-				panic("AppInputCaptureFunc: ref is not todotxt.Task")
-			}
+			cellText = t.DoingPane.GetCell(t.DoingPane.GetSelection()).Text
+			task, err = t.DB.GetTaskFromTable(t.DoingPane.Table)
 		} else if t.DonePane.HasFocus() {
-			cell := t.DonePane.GetCell(t.DonePane.GetSelection())
-			cellText = cell.Text
-			task, ok = cell.GetReference().(*todotxt.Task)
-			if !ok {
-				panic("AppInputCaptureFunc: ref is not todotxt.Task")
-			}
+			cellText = t.DonePane.GetCell(t.DonePane.GetSelection()).Text
+			task, err = t.DB.GetTaskFromTable(t.DonePane.Table)
 		}
-		if &task != nil {
+		if err != nil {
+			panic("AppInputCaptureFunc: ref is not todotxt.Task")
+		}
+
+		if task != nil {
 			if task.Priority == "" {
 				task.Priority = priorityA
 			} else {
@@ -106,6 +98,7 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 					}
 				}
 			}
+
 			t.refreshProjects()
 			if t.TodoPane.HasFocus() {
 				t.TodoPane.SelectByText(cellText)
@@ -151,16 +144,11 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		// Move to DoingPane
 		project := t.ProjectPane.GetCurrentProject()
 		if t.TodoPane.GetRowCount() > 0 && project != nil {
-			ref, ok := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
-			if !ok {
+			ref, error := t.DB.GetTaskFromTable(t.TodoPane.Table)
+			if error != nil {
 				panic("todoPaneInputCaptureFunc: ref is not todotxt.Task")
 			}
-
-			// TODO: more smart way
-			new := *ref
-			tsk.ToDoing(&new, t.getSelectingDate())
-			t.DB.LivingTasks.RemoveTask(*ref)
-			t.DB.LivingTasks.AddTask(&new)
+			tsk.ToDoing(ref, t.getSelectingDate())
 			t.refreshProjects()
 
 			t.TodoPane.AdjustSelection()
@@ -179,8 +167,8 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
 			if t.TodoPane.GetRowCount() > 0 {
-				task, ok := t.TodoPane.GetCell(t.TodoPane.GetSelection()).GetReference().(*todotxt.Task)
-				if !ok {
+				task, error := t.DB.GetTaskFromTable(t.TodoPane.Table)
+				if error != nil {
 					panic("todoPaneInputCaptureFunc: ref is not todotxt.Task")
 				}
 
@@ -225,16 +213,11 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Key() {
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		// Move to TodoPane
-		ref, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
-		if !ok {
+		ref, error := t.DB.GetTaskFromTable(t.DoingPane.Table)
+		if error != nil {
 			panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
 		}
-
-		// TODO: more smart way
-		new := *ref
-		tsk.ToTodo(&new)
-		t.DB.LivingTasks.RemoveTask(*ref)
-		t.DB.LivingTasks.AddTask(&new)
+		tsk.ToTodo(ref)
 		t.refreshProjects()
 
 		t.DoingPane.AdjustSelection()
@@ -247,8 +230,8 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
 			if t.DoingPane.GetRowCount() > 0 {
-				task, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
-				if !ok {
+				task, error := t.DB.GetTaskFromTable(t.DoingPane.Table)
+				if error != nil {
 					panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
 				}
 
@@ -268,16 +251,11 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case ' ':
 		// Move to DonePane
 		if t.DoingPane.GetRowCount() > 0 {
-			ref, ok := t.DoingPane.GetCell(t.DoingPane.GetSelection()).GetReference().(*todotxt.Task)
-			if !ok {
+			ref, error := t.DB.GetTaskFromTable(t.DoingPane.Table)
+			if error != nil {
 				panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
 			}
-
-			// TODO: more smart way
-			new := *ref
-			tsk.ToDone(&new)
-			t.DB.LivingTasks.RemoveTask(*ref)
-			t.DB.LivingTasks.AddTask(&new)
+			tsk.ToDone(ref)
 			t.refreshProjects()
 
 			t.DoingPane.AdjustSelection()
@@ -298,16 +276,11 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	f := func() {
 		// Move to DoingPane
 		if t.DonePane.GetRowCount() > 0 {
-			ref, ok := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
-			if !ok {
+			ref, error := t.DB.GetTaskFromTable(t.DonePane.Table)
+			if error != nil {
 				panic("donePaneInputCaptureFunc: ref is not todotxt.Task")
 			}
-
-			// TODO: more smart way
-			new := *ref
-			tsk.ToDoing(&new, t.getSelectingDate())
-			t.DB.LivingTasks.RemoveTask(*ref)
-			t.DB.LivingTasks.AddTask(&new)
+			tsk.ToDoing(ref, t.getSelectingDate())
 			t.refreshProjects()
 
 			t.DonePane.AdjustSelection()
@@ -325,8 +298,8 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
 			if t.DonePane.GetRowCount() > 0 {
-				task, ok := t.DonePane.GetCell(t.DonePane.GetSelection()).GetReference().(*todotxt.Task)
-				if !ok {
+				task, error := t.DB.GetTaskFromTable(t.DonePane.Table)
+				if error != nil {
 					panic("donePaneInputCaptureFunc: ref is not todotxt.Task")
 				}
 
