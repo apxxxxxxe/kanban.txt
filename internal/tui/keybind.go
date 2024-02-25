@@ -14,6 +14,7 @@ const (
 	todoDelete
 	doingDelete
 	doneDelete
+	taskArchive
 )
 
 func (t *Tui) setKeybind() {
@@ -25,6 +26,26 @@ func (t *Tui) setKeybind() {
 	t.DonePane.SetInputCapture(t.donePaneInputCaptureFunc)
 	t.InputWidget.SetInputCapture(t.inputWidgetInputCaptureFunc)
 	t.DescriptionWidget.SetInputCapture(t.descriptionWidgetInputCaptureFunc)
+}
+
+func (t *Tui) selectTask() (*todotxt.Task, string, error) {
+	var cellText string
+	var task *todotxt.Task
+	var err error
+	if t.TodoPane.HasFocus() {
+		cellText = t.TodoPane.GetCell(t.TodoPane.GetSelection()).Text
+		task, err = t.DB.GetTaskFromTable(t.TodoPane.Table)
+	} else if t.DoingPane.HasFocus() {
+		cellText = t.DoingPane.GetCell(t.DoingPane.GetSelection()).Text
+		task, err = t.DB.GetTaskFromTable(t.DoingPane.Table)
+	} else if t.DonePane.HasFocus() {
+		cellText = t.DonePane.GetCell(t.DonePane.GetSelection()).Text
+		task, err = t.DB.GetTaskFromTable(t.DonePane.Table)
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	return task, cellText, err
 }
 
 func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -57,25 +78,30 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		t.pushFocus(t.InputWidget.Box)
 		t.InputWidget.Mode = 'R'
 		return nil
+	case 'a':
+		// Archive
+		if t.ConfirmationStatus == taskArchive {
+			task, _, err := t.selectTask()
+			if err != nil {
+				t.Notify(err.Error(), true)
+				return nil
+			}
+			t.DB.ArchiveTask(task)
+			t.refreshProjects()
+			t.Notify("Archived tasks", false)
+			t.ConfirmationStatus = defaultStatus
+		} else {
+			t.ConfirmationStatus = taskArchive
+			t.Notify("Press a again to archive all tasks", false)
+		}
+		return nil
 	case 'P':
 		// add or increment priority
-		var cellText string
-		var task *todotxt.Task
-		var err error
-		if t.TodoPane.HasFocus() {
-			cellText = t.TodoPane.GetCell(t.TodoPane.GetSelection()).Text
-			task, err = t.DB.GetTaskFromTable(t.TodoPane.Table)
-		} else if t.DoingPane.HasFocus() {
-			cellText = t.DoingPane.GetCell(t.DoingPane.GetSelection()).Text
-			task, err = t.DB.GetTaskFromTable(t.DoingPane.Table)
-		} else if t.DonePane.HasFocus() {
-			cellText = t.DonePane.GetCell(t.DonePane.GetSelection()).Text
-			task, err = t.DB.GetTaskFromTable(t.DonePane.Table)
-		}
+		task, cellText, err := t.selectTask()
 		if err != nil {
-			panic("AppInputCaptureFunc: ref is not todotxt.Task")
+			t.Notify(err.Error(), true)
+			return nil
 		}
-
 		if task != nil {
 			if task.Priority == "" {
 				task.Priority = priorityA
