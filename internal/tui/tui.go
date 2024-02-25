@@ -2,11 +2,11 @@ package tui
 
 import (
 	"fmt"
-	"time"
-
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
+	"github.com/apxxxxxxe/kanban.txt/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
+	"time"
 )
 
 type Tui struct {
@@ -158,7 +158,8 @@ func (t *Tui) Descript(desc [][]string) {
 
 func (t *Tui) getSelectingDate() time.Time {
 	_, col := t.DaysTable.GetSelection()
-	return time.Now().AddDate(0, 0, col-db.DayCount/2)
+	date := time.Now().AddDate(0, 0, col-db.DayCount/2)
+	return util.RemoveClockTime(date)
 }
 
 func (t *Tui) getCurrentDay() (int, int) {
@@ -167,8 +168,8 @@ func (t *Tui) getCurrentDay() (int, int) {
 }
 
 func (t *Tui) refreshProjects() {
-  _, index := t.getCurrentDay()
-	if err := t.DB.RefreshProjects(index); err != nil {
+  day, _ := t.getCurrentDay()
+	if err := t.DB.RefreshProjects(day); err != nil {
 		t.Notify(err.Error(), true)
 	}
 	row, col := t.ProjectPane.GetSelection()
@@ -206,7 +207,7 @@ func (t *Tui) Run() error {
 	if err := t.DB.LoadData(); err != nil {
 		return err
 	}
-	if err := t.DB.RefreshProjects(db.DayCount/2); err != nil {
+	if err := t.DB.RefreshProjects(0); err != nil {
 		return err
 	}
 
