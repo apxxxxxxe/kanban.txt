@@ -135,7 +135,17 @@ func (d *Database) GetTaskFromTable(t *tview.Table) (*todotxt.Task, error) {
 	if !ok {
 		return nil, errors.New("the selected cell is not a *todotxt.Task")
 	}
-	return d.LivingTasks.GetTask(task.ID)
+	return GetTaskReference(d.LivingTasks, *task), nil
+}
+
+func GetTaskReference(taskList todotxt.TaskList, task todotxt.Task) *todotxt.Task {
+  key := tsk.GetTaskKey(task)
+  for i := range taskList {
+    if tsk.GetTaskKey(taskList[i]) == key {
+      return &taskList[i]
+    }
+  }
+  return nil
 }
 
 func (d *Database) SaveData() error {
