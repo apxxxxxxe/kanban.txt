@@ -1,15 +1,15 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/1set/todotxt"
+	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
+	"github.com/rivo/tview"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
-
-	"github.com/1set/todotxt"
-	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
-	"github.com/rivo/tview"
 )
 
 const (
@@ -27,14 +27,20 @@ const (
 var (
 	DataPath       = filepath.Join(getDataPath(), "data")
 	ExportListPath = filepath.Join(getDataPath(), "list_export.txt")
+	ArchivePath    = filepath.Join(getDataPath(), "archive.json")
 	ImportPath     = filepath.Join(getDataPath(), "todo.txt")
-	ConfigPath = filepath.Join(getDataPath(), "config.json")
+	ConfigPath     = filepath.Join(getDataPath(), "config.json")
 )
 
 type Database struct {
 	LivingTasks   todotxt.TaskList
-	ArchivedTasks todotxt.TaskList
+	HiddenTasks   todotxt.TaskList
+	ArchivedTasks []string
 	Projects      []*Project
+}
+
+type Archive struct {
+	ArchivedTasks []string `json:"archived_tasks"`
 }
 
 type Project struct {
@@ -92,7 +98,7 @@ func copyTask(t todotxt.Task) todotxt.Task {
 }
 
 func sortTaskList(taskList todotxt.TaskList) {
-  taskList.Sort(todotxt.SortCreatedDateDesc)
+	taskList.Sort(todotxt.SortCreatedDateDesc)
 	sort.Slice(taskList, func(i, j int) bool {
 		if taskList[i].Completed != taskList[j].Completed {
 			return !taskList[i].Completed && taskList[j].Completed
@@ -133,7 +139,7 @@ func (d *Database) GetTaskFromTable(t *tview.Table) (*todotxt.Task, error) {
 }
 
 func (d *Database) SaveData() error {
-	allTasks := append(d.LivingTasks, d.ArchivedTasks...)
+	allTasks := append(d.LivingTasks, d.HiddenTasks...)
 	sortTaskList(allTasks)
 	return d.saveData(allTasks, ImportPath)
 }
@@ -165,6 +171,14 @@ func (d *Database) saveData(taskList todotxt.TaskList, filePath string) error {
 		}
 	}
 
+	b, err := json.MarshalIndent(Archive{ArchivedTasks: d.ArchivedTasks}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(ArchivePath, b, 0644); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -194,7 +208,21 @@ func (d *Database) LoadData() error {
 
 	d.LivingTasks = allTasks.Filter(FilterMapContains(idArray))
 
-	d.ArchivedTasks = allTasks.Filter(todotxt.FilterNot(FilterMapContains(idArray)))
+	d.HiddenTasks = allTasks.Filter(todotxt.FilterNot(FilterMapContains(idArray)))
+
+	var archive Archive
+	b, err := os.ReadFile(ArchivePath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		archive = Archive{}
+	} else {
+		if err := json.Unmarshal(b, &archive); err != nil {
+			return err
+		}
+	}
+	d.ArchivedTasks = archive.ArchivedTasks
 
 	return nil
 }
@@ -245,6 +273,10 @@ func makeTaskMap(taskList *todotxt.TaskList) map[string]*todotxt.Task {
 	return taskMap
 }
 
+func (d *Database) ArchiveTask(t *todotxt.Task) {
+	d.ArchivedTasks = append(d.ArchivedTasks, tsk.GetTaskKey(*t))
+}
+
 func (d *Database) recurrentTasks(day int) error {
 	date := time.Now().AddDate(0, 0, day)
 	doneTasks := d.LivingTasks.Filter(todotxt.FilterCompleted)
@@ -266,7 +298,7 @@ func (d *Database) recurrentTasks(day int) error {
 			}
 			// nextTimeを経過しているかどうか
 			if nextTime.Before(date) {
-				sameTasks := append(d.LivingTasks, d.ArchivedTasks...).
+				sameTasks := append(d.LivingTasks, d.HiddenTasks...).
 					Filter(todotxt.FilterNotCompleted).
 					Filter(filterByTodo(t.Todo)).
 					Filter(todotxt.FilterByPriority(t.Priority)).
@@ -293,7 +325,7 @@ func (d *Database) moveToArchive(t todotxt.Task) error {
 	if err := d.LivingTasks.RemoveTask(t); err != nil {
 		return err
 	}
-	d.ArchivedTasks.AddTask(&t)
+	d.HiddenTasks.AddTask(&t)
 	return nil
 }
 
@@ -311,6 +343,17 @@ func filterHasSameContexts(a todotxt.Task) todotxt.Predicate {
 
 func timeToDate(t *time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+}
+
+func FilterArchivedTasks(archivedTasks []string) todotxt.Predicate {
+	return func(t todotxt.Task) bool {
+		for _, key := range archivedTasks {
+			if key == tsk.GetTaskKey(t) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 func FilterMapContains(idArray []int) todotxt.Predicate {
@@ -378,17 +421,26 @@ func (d *Database) RefreshProjects(day int) error {
 
 	getTodoTasks := func(tasklist todotxt.TaskList, day int) todotxt.TaskList {
 		date := time.Now().AddDate(0, 0, day)
-		return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).Filter(FilterCompareDate(date))
+		return tasklist.Filter(todotxt.FilterNotCompleted).
+			Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).
+			Filter(FilterCompareDate(date)).
+			Filter(todotxt.FilterNot(FilterArchivedTasks(d.ArchivedTasks)))
 	}
 
 	getDoingTasks := func(tasklist todotxt.TaskList, day int) todotxt.TaskList {
 		date := time.Now().AddDate(0, 0, day)
-		return tasklist.Filter(todotxt.FilterNotCompleted).Filter(todotxt.FilterByContext("doing")).Filter(FilterCompareDate(date))
+		return tasklist.Filter(todotxt.FilterNotCompleted).
+			Filter(todotxt.FilterByContext("doing")).
+			Filter(FilterCompareDate(date)).
+			Filter(todotxt.FilterNot(FilterArchivedTasks(d.ArchivedTasks)))
 	}
 
 	getDoneTasks := func(tasklist todotxt.TaskList, day int) todotxt.TaskList {
 		date := time.Now().AddDate(0, 0, day)
-		tasks := tasklist.Filter(todotxt.FilterCompleted).Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).Filter(FilterCompareDate(date))
+		tasks := tasklist.Filter(todotxt.FilterCompleted).
+			Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).
+			Filter(FilterCompareDate(date)).
+			Filter(todotxt.FilterNot(FilterArchivedTasks(d.ArchivedTasks)))
 		tasks.Sort(todotxt.SortCompletedDateDesc)
 		return tasks
 	}

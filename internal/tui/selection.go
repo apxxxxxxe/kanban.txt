@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"fmt"
-
 	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 )
@@ -36,21 +34,9 @@ func (t *Tui) daysTableSelectionChangedFunc(row, col int) {
 }
 
 func (t *Tui) projectPaneSelectionChangedFunc(row, col int) {
-	if t.ProjectPane.GetRowCount() == 0 {
-		return
+	if t.ProjectPane.GetRowCount() != 0 {
+		t.reDrawProjects()
 	}
-
-	project := t.reDrawProjects()
-
-	description := [][]string{
-		{"wholetasklen", fmt.Sprintf("%d", len(t.DB.LivingTasks))},
-		{"name", project.ProjectName},
-		{"len", fmt.Sprintf("%d", len(project.TodoTasks)+len(project.DoingTasks)+len(project.DoneTasks))},
-		{"todo", fmt.Sprintf("%d", len(project.TodoTasks))},
-		{"doing", fmt.Sprintf("%d", len(project.DoingTasks))},
-		{"done", fmt.Sprintf("%d", len(project.DoneTasks))},
-	}
-	t.Descript(description)
 }
 
 func (t *Tui) todoPaneSelectionChangedFunc(row, col int) {
