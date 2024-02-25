@@ -13,21 +13,22 @@ import (
 )
 
 const (
-	dataRoot        = "kanban"
-	TodaysFeedTitle = "Today's Articles"
-	SavePrefixGroup = "g_"
-	SavePrefixFeed  = "f_"
-	NoProject       = "NoProject"
-	AllTasks        = "AllTasks"
-	allDay          = -50
-	DayCount        = 7
+	KeepDoneTaskCount = 100
+	dataRoot          = "kanban"
+	TodaysFeedTitle   = "Today's Articles"
+	SavePrefixGroup   = "g_"
+	SavePrefixFeed    = "f_"
+	NoProject         = "NoProject"
+	AllTasks          = "AllTasks"
+	allDay            = -50
+	DayCount          = 7
 )
 
 var (
 	DataPath       = filepath.Join(getDataPath(), "data")
 	ExportListPath = filepath.Join(getDataPath(), "list_export.txt")
 	ImportPath     = filepath.Join(getDataPath(), "todo.txt")
-	ArchivePath    = filepath.Join(getDataPath(), "archive.txt")
+	// ArchivePath    = filepath.Join(getDataPath(), "archive.txt")
 	ConfigPath     = filepath.Join(getDataPath(), "config.json")
 )
 
@@ -132,13 +133,9 @@ func (d *Database) GetTaskFromTable(t *tview.Table) (*todotxt.Task, error) {
 }
 
 func (d *Database) SaveData() error {
-	if err := d.saveData(d.LivingTasks, ImportPath); err != nil {
-		return err
-	}
-	if err := d.saveData(d.ArchivedTasks, ArchivePath); err != nil {
-		return err
-	}
-	return nil
+  allTasks := append(d.LivingTasks, d.ArchivedTasks...)
+  sortTaskList(allTasks)
+	return d.saveData(allTasks, ImportPath)
 }
 
 func (d *Database) saveData(taskList todotxt.TaskList, filePath string) error {
@@ -184,14 +181,26 @@ func comparePriority(p1, p2 string) bool {
 func (d *Database) LoadData() error {
 	var err error
 
-	d.LivingTasks, err = d.loadData(ImportPath)
+	allTasks, err := todotxt.LoadFromPath(ImportPath)
 	if err != nil {
 		return err
 	}
 
-	d.ArchivedTasks, err = d.loadData(ArchivePath)
-	if err != nil {
-		return err
+	d.LivingTasks = allTasks.Filter(todotxt.FilterNotCompleted)
+
+	completedTasks := allTasks.Filter(todotxt.FilterCompleted)
+	completedTasks.Sort(todotxt.SortCompletedDateDesc)
+	for i := range completedTasks {
+		if i < KeepDoneTaskCount {
+			d.LivingTasks.AddTask(&completedTasks[i])
+		}
+	}
+
+	d.ArchivedTasks = todotxt.NewTaskList()
+	for i := range completedTasks {
+		if i >= KeepDoneTaskCount {
+			d.ArchivedTasks.AddTask(&completedTasks[i])
+		}
 	}
 
 	return nil
@@ -240,25 +249,30 @@ func (d *Database) recurrentTasks(day int) error {
 		}
 	}
 
-	for _, t := range tasks {
+	for i := range tasks {
+		t := tasks[i]
 		if _, ok := t.AdditionalTags[tsk.KeyRec]; ok {
 			nextTime, err := tsk.ParseRecurrence(&t)
 			if err != nil {
 				return err
 			}
+			// nextTimeを経過しているかどうか
 			if nextTime.Before(date) {
 				sameTasks := d.LivingTasks.
 					Filter(todotxt.FilterNotCompleted).
 					Filter(filterByTodo(t.Todo)).
 					Filter(todotxt.FilterByPriority(t.Priority)).
-					Filter(todotxt.FilterByProject(tsk.GetProjectName(t))).
-					Filter(filterHasSameContexts(t))
+					Filter(todotxt.FilterByProject(tsk.GetProjectName(t)))
+					// Filter(filterHasSameContexts(t))
 				if len(sameTasks) == 0 {
 					newTask := copyTask(t)
 					newTask.Reopen()
+					delete(newTask.AdditionalTags, tsk.KeyStartDoing)
 					newTask.CreatedDate = date
+					// if err := d.moveToArchive(t); err != nil {
+					// 	return err
+					// }
 					d.LivingTasks.AddTask(&newTask)
-					d.moveToArchive(t)
 				}
 			}
 		}
@@ -267,9 +281,12 @@ func (d *Database) recurrentTasks(day int) error {
 	return nil
 }
 
-func (d *Database) moveToArchive(t todotxt.Task) {
-	d.LivingTasks.RemoveTask(t)
+func (d *Database) moveToArchive(t todotxt.Task) error {
+	if err := d.LivingTasks.RemoveTask(t); err != nil {
+		return err
+	}
 	d.ArchivedTasks.AddTask(&t)
+	return nil
 }
 
 func filterByTodo(todo string) todotxt.Predicate {
@@ -365,7 +382,7 @@ func (d *Database) RefreshProjects(day int) error {
 
 	projectList := map[string]*Project{}
 	for key, fn := range list {
-		for _, task := range fn(d.LivingTasks, day-DayCount/2) {
+		for _, task := range fn(d.LivingTasks, day) {
 			projectName := tsk.GetProjectName(task)
 			project, ok := projectList[projectName]
 			if !ok {
@@ -390,9 +407,9 @@ func (d *Database) RefreshProjects(day int) error {
 	}
 	allTaskProject := &Project{
 		ProjectName: AllTasks,
-		TodoTasks:   getTodoTasks(d.LivingTasks, day-DayCount/2),
-		DoingTasks:  getDoingTasks(d.LivingTasks, day-DayCount/2),
-		DoneTasks:   getDoneTasks(d.LivingTasks, day-DayCount/2),
+		TodoTasks:   getTodoTasks(d.LivingTasks, day),
+		DoingTasks:  getDoingTasks(d.LivingTasks, day),
+		DoneTasks:   getDoneTasks(d.LivingTasks, day),
 	}
 	projects = append(projects, allTaskProject)
 

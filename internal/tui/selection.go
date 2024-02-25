@@ -16,8 +16,8 @@ func (t *Tui) setSelectedFunc() {
 }
 
 func (t *Tui) reDrawProjects() *db.Project {
-	_, index := t.getCurrentDay()
-	t.DB.RefreshProjects(index)
+	day, _ := t.getCurrentDay()
+	t.DB.RefreshProjects(day)
 	projects := t.DB.Projects
 
 	// TODO: 見た目との分離; 現在はProjectsByDateの各要素間でProjectとその並びが同一であることを前提にしている

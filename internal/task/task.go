@@ -2,11 +2,10 @@ package task
 
 import (
 	"errors"
+	"github.com/1set/todotxt"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/1set/todotxt"
 )
 
 const (
@@ -83,14 +82,15 @@ func ToDoing(task *todotxt.Task, date time.Time) {
 	task.Reopen()
 }
 
-func ToDone(task *todotxt.Task) {
+func ToDone(task *todotxt.Task, date time.Time) {
 	for i, c := range task.Contexts {
 		if c == "doing" {
 			task.Contexts = append(task.Contexts[:i], task.Contexts[i+1:]...)
 			break
 		}
 	}
-	task.Complete()
+	task.Completed = true
+	task.CompletedDate = date
 }
 
 func ParseRecurrence(task *todotxt.Task) (time.Time, error) {
@@ -107,23 +107,22 @@ func ParseRecurrence(task *todotxt.Task) (time.Time, error) {
 				return nextOpenTime, err
 			}
 			period := v[len(v)-1:]
-			var dur time.Duration
+			if isRepeatOnCompletion && task.Completed {
+				nextOpenTime = task.CompletedDate
+			} else {
+				nextOpenTime = task.CreatedDate
+			}
 			switch period {
 			case "d":
-				dur = time.Duration(num) * 24 * time.Hour
+				nextOpenTime = nextOpenTime.AddDate(0, 0, num)
 			case "w":
-				dur = time.Duration(num) * 7 * 24 * time.Hour
+				nextOpenTime = nextOpenTime.AddDate(0, 0, num*7)
 			case "m":
-				dur = time.Duration(num) * 30 * 24 * time.Hour
+				nextOpenTime = nextOpenTime.AddDate(0, num, 0)
 			case "y":
-				dur = time.Duration(num) * 365 * 24 * time.Hour
+				nextOpenTime = nextOpenTime.AddDate(num, 0, 0)
 			default:
 				return nextOpenTime, errors.New("invalid recurrence period")
-			}
-			if isRepeatOnCompletion && task.Completed {
-				nextOpenTime = task.CompletedDate.Add(dur)
-			} else {
-				nextOpenTime = task.CreatedDate.Add(dur)
 			}
 		}
 	}

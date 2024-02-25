@@ -255,7 +255,7 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 			if error != nil {
 				panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
 			}
-			tsk.ToDone(ref)
+			tsk.ToDone(ref, t.getSelectingDate())
 			t.refreshProjects()
 
 			t.DoingPane.AdjustSelection()
@@ -400,8 +400,8 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 
 		case 'p':
 			// New Project
-			_, index := t.getCurrentDay()
-			t.DB.RefreshProjects(index)
+			day, _ := t.getCurrentDay()
+			t.DB.RefreshProjects(day)
 			t.DB.Projects = append(t.DB.Projects, &db.Project{ProjectName: input})
 			t.ProjectPane.ResetCell(t.DB.Projects)
 
@@ -417,9 +417,13 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			// Edit Field
 			field := t.InputWidget.GetTitle()
 			cellText := t.EditingCell.Text
-			task, ok := t.EditingCell.GetReference().(*todotxt.Task)
+			taskRef, ok := t.EditingCell.GetReference().(*todotxt.Task)
 			if !ok {
 				panic("inputWidgetInputCaptureFunc: ref is not todotxt.Task")
+			}
+			task, err := t.DB.LivingTasks.GetTask(taskRef.ID)
+			if err != nil {
+				panic("inputWidgetInputCaptureFunc: task not found")
 			}
 			setTaskField(task, field, input)
 

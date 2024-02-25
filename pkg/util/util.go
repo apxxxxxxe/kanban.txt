@@ -6,8 +6,13 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+  "time"
 	"path/filepath"
 )
+
+func RemoveClockTime(date time.Time) time.Time {
+  return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+}
 
 func IsFile(filename string) bool {
 	_, err := os.OpenFile(filename, os.O_RDONLY, 0)
