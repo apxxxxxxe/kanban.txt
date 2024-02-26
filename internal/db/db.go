@@ -97,9 +97,9 @@ func copyTask(t todotxt.Task) todotxt.Task {
 }
 
 func sortTaskReferences(taskList TaskReferences) {
-  sort.Slice(taskList, func(i, j int) bool {
-    return taskList[i].String() < taskList[j].String()
-  })
+	sort.Slice(taskList, func(i, j int) bool {
+		return taskList[i].String() < taskList[j].String()
+	})
 	sort.Slice(taskList, func(i, j int) bool {
 		if taskList[i].Completed != taskList[j].Completed {
 			return !taskList[i].Completed && taskList[j].Completed
@@ -179,7 +179,7 @@ func (d *Database) LoadData() error {
 	for k := range allTaskMap {
 		idArray = append(idArray, allTaskMap[k].ID)
 	}
-  sort.Ints(idArray)
+	sort.Ints(idArray)
 
 	d.LivingTasks = *allTasks.Filter(FilterMapContains(idArray))
 
@@ -250,7 +250,11 @@ func makeTaskMap(taskList TaskReferences) map[string]*todotxt.Task {
 }
 
 func (d *Database) ArchiveTask(t *todotxt.Task) {
-	d.ArchivedTasks = append(d.ArchivedTasks, tsk.GetTaskKey(*t))
+	v, ok := t.AdditionalTags[tsk.KeyRecID]
+	if !ok {
+		panic("recurrence id not found: " + t.String())
+	}
+	d.ArchivedTasks = append(d.ArchivedTasks, v)
 }
 
 func (d *Database) recurrentTasks(day int) error {
@@ -326,7 +330,7 @@ func timeToDate(t *time.Time) time.Time {
 func FilterArchivedTasks(archivedTasks []string) todotxt.Predicate {
 	return func(t todotxt.Task) bool {
 		for _, key := range archivedTasks {
-			if key == tsk.GetTaskKey(t) {
+			if v, ok := t.AdditionalTags[tsk.KeyRecID]; ok && v == key {
 				return true
 			}
 		}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/1set/todotxt"
 	"github.com/apxxxxxxe/kanban.txt/internal/task"
+	"github.com/google/uuid"
 )
 
 const (
@@ -82,6 +83,8 @@ func setTaskField(t *todotxt.Task, field, value string) {
 			t.AdditionalTags = map[string]string{}
 		}
 		t.AdditionalTags[task.KeyRec] = value
+		key := uuid.New().String()
+		t.AdditionalTags[task.KeyRecID] = key
 	case todoNote:
 		if t.AdditionalTags == nil {
 			t.AdditionalTags = map[string]string{}
