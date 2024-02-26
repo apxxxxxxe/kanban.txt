@@ -48,31 +48,3 @@ func (tr *TaskReferences) PredicateNot(pred todotxt.Predicate) todotxt.Predicate
 		return !pred(task)
 	}
 }
-
-func (tr *TaskReferences) Sort(flag todotxt.TaskSortByType, flags ...todotxt.TaskSortByType) error {
-	taskList := todotxt.NewTaskList()
-	for _, task := range *tr {
-		taskList.AddTask(task)
-	}
-	if err := taskList.Sort(flag, flags...); err != nil {
-		return err
-	}
-	result := NewTaskReferences()
-	for _, task := range taskList {
-		for _, taskRef := range *tr {
-			if task.String() == taskRef.String() {
-				result.AddTask(taskRef)
-			}
-		}
-	}
-	*tr = result
-	return nil
-}
-
-func (tr *TaskReferences) String() string {
-	result := ""
-	for _, task := range *tr {
-		result += task.Todo + "\n"
-	}
-	return result
-}
