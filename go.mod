@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/1set/todotxt v0.0.4
 	github.com/gdamore/tcell/v2 v2.6.0
+	github.com/google/uuid v1.6.0
 	github.com/pkg/errors v0.9.1
 	github.com/rivo/tview v0.0.0-20230406072732-e22ce9588bb4
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
