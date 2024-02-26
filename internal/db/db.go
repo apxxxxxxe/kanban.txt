@@ -238,6 +238,10 @@ func (d *Database) loadData(filePath string) (TaskReferences, error) {
 }
 
 func makeTaskMap(taskList TaskReferences) map[string]*todotxt.Task {
+	sort.Slice(taskList, func(i, j int) bool {
+		return taskList[i].CompletedDate.After(taskList[j].CompletedDate) ||
+			taskList[i].CreatedDate.After(taskList[j].CreatedDate)
+	})
 	taskMap := map[string]*todotxt.Task{}
 	for i := range taskList {
 		t := taskList[i]
@@ -281,23 +285,11 @@ func (d *Database) recurrentTasks(day int) error {
 			}
 			// nextTimeを経過しているかどうか
 			if nextTime.Before(date) {
-				sameTasks := append(d.LivingTasks, d.HiddenTasks...)
-				sameTasks = *sameTasks.
-					Filter(todotxt.FilterNotCompleted).
-					Filter(filterByTodo(t.Todo)).
-					Filter(todotxt.FilterByPriority(t.Priority)).
-					Filter(todotxt.FilterByProject(tsk.GetProjectName(*t)))
-					// Filter(filterHasSameContexts(t))
-				if len(sameTasks) == 0 {
-					newTask := copyTask(*t)
-					newTask.Reopen()
-					delete(newTask.AdditionalTags, tsk.KeyStartDoing)
-					newTask.CreatedDate = date
-					// if err := d.moveToArchive(t); err != nil {
-					// 	return err
-					// }
-					d.LivingTasks.AddTask(&newTask)
-				}
+				newTask := copyTask(*t)
+				newTask.Reopen()
+				delete(newTask.AdditionalTags, tsk.KeyStartDoing)
+				newTask.CreatedDate = date
+				d.LivingTasks.AddTask(&newTask)
 			}
 		}
 	}
