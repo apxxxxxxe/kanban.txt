@@ -1,12 +1,13 @@
 package tui
 
 import (
-	"strings"
-
+	"errors"
 	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+	"strings"
 )
 
 const (
@@ -16,6 +17,8 @@ const (
 	doneDelete
 	taskArchive
 )
+
+var ErrReferenceNotFound = errors.New("Reference not found")
 
 func (t *Tui) setKeybind() {
 	t.App.SetInputCapture(t.AppInputCaptureFunc)
@@ -29,23 +32,25 @@ func (t *Tui) setKeybind() {
 }
 
 func (t *Tui) selectTask() (*todotxt.Task, string, error) {
-	var cellText string
-	var task *todotxt.Task
-	var err error
+	var cell *tview.TableCell
 	if t.TodoPane.HasFocus() {
-		cellText = t.TodoPane.GetCell(t.TodoPane.GetSelection()).Text
-		task, err = t.DB.GetTaskFromTable(t.TodoPane.Table)
+		cell = t.TodoPane.GetCell(t.TodoPane.GetSelection())
 	} else if t.DoingPane.HasFocus() {
-		cellText = t.DoingPane.GetCell(t.DoingPane.GetSelection()).Text
-		task, err = t.DB.GetTaskFromTable(t.DoingPane.Table)
+		cell = t.DoingPane.GetCell(t.DoingPane.GetSelection())
 	} else if t.DonePane.HasFocus() {
-		cellText = t.DonePane.GetCell(t.DonePane.GetSelection()).Text
-		task, err = t.DB.GetTaskFromTable(t.DonePane.Table)
+		cell = t.DonePane.GetCell(t.DonePane.GetSelection())
 	}
-	if err != nil {
-		return nil, "", err
-	}
+	cellText := cell.Text
+	task, err := getTaskFromCell(cell)
 	return task, cellText, err
+}
+
+func getTaskFromCell(cell *tview.TableCell) (*todotxt.Task, error) {
+	task, ok := cell.GetReference().(*todotxt.Task)
+	if !ok {
+		return nil, ErrReferenceNotFound
+	}
+	return task, nil
 }
 
 func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
@@ -142,17 +147,26 @@ func (t *Tui) AppInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 
 func (t *Tui) daysTableInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
-	case 'j', 'J':
+	case 'j':
 		t.popFocus()
 	}
 	return event
 }
 
+func (t *Tui) moveToDaysTable(table *tview.Table) bool {
+	if row, _ := table.GetSelection(); row == 0 {
+		t.pushFocus(t.DaysTable.Box)
+		return true
+	}
+	return false
+}
+
 func (t *Tui) projectPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
-	case 'K':
-		t.pushFocus(t.DaysTable.Box)
-		return nil
+	case 'k':
+		if t.moveToDaysTable(t.ProjectPane.Table) {
+			return nil
+		}
 	case 'l':
 		row, _ := t.TodoPane.GetSelection()
 		n := t.TodoPane.GetRowCount()
@@ -170,9 +184,9 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 		// Move to DoingPane
 		project := t.ProjectPane.GetCurrentProject()
 		if t.TodoPane.GetRowCount() > 0 && project != nil {
-			ref, error := t.DB.GetTaskFromTable(t.TodoPane.Table)
-			if error != nil {
-				panic("todoPaneInputCaptureFunc: ref is not todotxt.Task")
+			ref, err := getTaskFromCell(t.TodoPane.GetCell(t.TodoPane.GetSelection()))
+			if err != nil {
+				panic(err)
 			}
 			tsk.ToDoing(ref, t.getSelectingDate())
 			t.refreshProjects()
@@ -187,18 +201,19 @@ func (t *Tui) todoPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
-	case 'K':
-		t.pushFocus(t.DaysTable.Box)
-		return nil
+	case 'k':
+		if t.moveToDaysTable(t.TodoPane.Table) {
+			return nil
+		}
 	case 'd':
 		if t.ConfirmationStatus == todoDelete {
 			if t.TodoPane.GetRowCount() > 0 {
-				task, error := t.DB.GetTaskFromTable(t.TodoPane.Table)
-				if error != nil {
-					panic("todoPaneInputCaptureFunc: ref is not todotxt.Task")
+				task, err := getTaskFromCell(t.TodoPane.GetCell(t.TodoPane.GetSelection()))
+				if err != nil {
+					panic(err)
 				}
 
-				t.DB.LivingTasks.RemoveTask(*task)
+				t.DB.LivingTasks.RemoveTask(task)
 				t.refreshProjects()
 
 				t.Notify("deleted todo task", false)
@@ -239,8 +254,8 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Key() {
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		// Move to TodoPane
-		ref, error := t.DB.GetTaskFromTable(t.DoingPane.Table)
-		if error != nil {
+		ref, err := getTaskFromCell(t.DoingPane.GetCell(t.DoingPane.GetSelection()))
+		if err != nil {
 			panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
 		}
 		tsk.ToTodo(ref)
@@ -250,18 +265,19 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
-	case 'K':
-		t.pushFocus(t.DaysTable.Box)
-		return nil
+	case 'k':
+		if t.moveToDaysTable(t.DoingPane.Table) {
+			return nil
+		}
 	case 'd':
 		if t.ConfirmationStatus == doingDelete {
 			if t.DoingPane.GetRowCount() > 0 {
-				task, error := t.DB.GetTaskFromTable(t.DoingPane.Table)
-				if error != nil {
-					panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
+				task, err := getTaskFromCell(t.DoingPane.GetCell(t.DoingPane.GetSelection()))
+				if err != nil {
+					panic(err)
 				}
 
-				t.DB.LivingTasks.RemoveTask(*task)
+				t.DB.LivingTasks.RemoveTask(task)
 				t.refreshProjects()
 
 				t.Notify("Deleted doing task", false)
@@ -277,9 +293,9 @@ func (t *Tui) doingPaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	case ' ':
 		// Move to DonePane
 		if t.DoingPane.GetRowCount() > 0 {
-			ref, error := t.DB.GetTaskFromTable(t.DoingPane.Table)
-			if error != nil {
-				panic("doingPaneInputCaptureFunc: ref is not todotxt.Task")
+			ref, err := getTaskFromCell(t.DoingPane.GetCell(t.DoingPane.GetSelection()))
+			if err != nil {
+				panic(err)
 			}
 			tsk.ToDone(ref, t.getSelectingDate())
 			t.refreshProjects()
@@ -302,9 +318,9 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	f := func() {
 		// Move to DoingPane
 		if t.DonePane.GetRowCount() > 0 {
-			ref, error := t.DB.GetTaskFromTable(t.DonePane.Table)
-			if error != nil {
-				panic("donePaneInputCaptureFunc: ref is not todotxt.Task")
+			ref, err := getTaskFromCell(t.DonePane.GetCell(t.DonePane.GetSelection()))
+			if err != nil {
+				panic(err)
 			}
 			tsk.ToDoing(ref, t.getSelectingDate())
 			t.refreshProjects()
@@ -319,17 +335,19 @@ func (t *Tui) donePaneInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	switch event.Rune() {
-	case 'K':
-		t.pushFocus(t.DaysTable.Box)
+	case 'k':
+		if t.moveToDaysTable(t.DonePane.Table) {
+			return nil
+		}
 	case 'd':
 		if t.ConfirmationStatus == doneDelete {
 			if t.DonePane.GetRowCount() > 0 {
-				task, error := t.DB.GetTaskFromTable(t.DonePane.Table)
-				if error != nil {
-					panic("donePaneInputCaptureFunc: ref is not todotxt.Task")
+				task, err := getTaskFromCell(t.DonePane.GetCell(t.DonePane.GetSelection()))
+				if err != nil {
+					panic(err)
 				}
 
-				t.DB.LivingTasks.RemoveTask(*task)
+				t.DB.LivingTasks.RemoveTask(task)
 				t.refreshProjects()
 
 				t.Notify("Deleted done task", false)
@@ -434,7 +452,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 		case 'R':
 			// Rename Project
 			taskList := t.DB.LivingTasks.Filter(todotxt.FilterByProject(project.ProjectName))
-			for _, task := range taskList {
+			for _, task := range *taskList {
 				task.Projects = []string{input}
 			}
 			t.refreshProjects()
@@ -443,13 +461,9 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			// Edit Field
 			field := t.InputWidget.GetTitle()
 			cellText := t.EditingCell.Text
-			taskRef, ok := t.EditingCell.GetReference().(*todotxt.Task)
-			if !ok {
-				panic("inputWidgetInputCaptureFunc: ref is not todotxt.Task")
-			}
-			task, err := t.DB.LivingTasks.GetTask(taskRef.ID)
+			task, err := getTaskFromCell(t.EditingCell)
 			if err != nil {
-				panic("inputWidgetInputCaptureFunc: task not found")
+				panic(err)
 			}
 			setTaskField(task, field, input)
 
@@ -489,7 +503,7 @@ func (t *Tui) descriptionWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.Ev
 		t.InputWidget.SetTitle(field)
 		task, ok := t.EditingCell.GetReference().(*todotxt.Task)
 		if !ok {
-			panic("descriptionWidgetInputCaptureFunc: ref is not todotxt.Task")
+			panic("descriptionWidgetInputCaptureFunc: ref is not *todotxt.Task")
 		}
 		t.InputWidget.SetText(getTaskField(task, field))
 		t.InputWidget.Mode = 'f'
