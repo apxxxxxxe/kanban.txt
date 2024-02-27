@@ -425,7 +425,7 @@ func (t *Tui) inputWidgetInputCaptureFunc(event *tcell.EventKey) *tcell.EventKey
 			task.CreatedDate = t.getSelectingDate()
 
 			// add current project
-			if project.ProjectName == db.AllTasks {
+			if project == nil || project.ProjectName == db.AllTasks {
 				task.Projects = []string{db.NoProject}
 			} else {
 				task.Projects = []string{project.ProjectName}
