@@ -7,6 +7,7 @@ import (
 	"github.com/rivo/tview"
 
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
+	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
 )
 
 const (
@@ -69,7 +70,15 @@ func (t *TodoTable) setCell(f *todo.Task) *tview.TableCell {
 		}
 	}
 
-	cell := tview.NewTableCell(f.Todo).SetReference(f)
+	text := f.Todo
+	if _, ok := f.AdditionalTags[tsk.KeyRec]; ok {
+		if _, ok := f.AdditionalTags[tsk.KeyRecID]; !ok {
+			text = "󰀦 " + text
+		}
+		text = " " + text
+	}
+
+	cell := tview.NewTableCell(text).SetReference(f)
 
 	if f.HasPriority() {
 		switch f.Priority {

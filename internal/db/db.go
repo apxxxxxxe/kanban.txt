@@ -3,12 +3,13 @@ package db
 import (
 	"encoding/json"
 	"errors"
-	"github.com/1set/todotxt"
-	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/1set/todotxt"
+	tsk "github.com/apxxxxxxe/kanban.txt/internal/task"
 )
 
 const (
@@ -181,9 +182,9 @@ func (d *Database) LoadData() error {
 	}
 	sort.Ints(idArray)
 
-	d.LivingTasks = *allTasks.Filter(FilterMapContains(idArray))
+	d.LivingTasks = *allTasks.Filter(filterMapContains(idArray))
 
-	d.HiddenTasks = *allTasks.Filter(todotxt.FilterNot(FilterMapContains(idArray)))
+	d.HiddenTasks = *allTasks.Filter(todotxt.FilterNot(filterMapContains(idArray)))
 
 	var archive Archive
 	b, err := os.ReadFile(ArchivePath)
@@ -315,11 +316,25 @@ func filterHasSameContexts(a todotxt.Task) todotxt.Predicate {
 	}
 }
 
+func filterHasRec() todotxt.Predicate {
+	return func(t todotxt.Task) bool {
+		_, ok := t.AdditionalTags[tsk.KeyRec]
+		return ok
+	}
+}
+
+func filterHasRecID() todotxt.Predicate {
+	return func(t todotxt.Task) bool {
+		_, ok := t.AdditionalTags[tsk.KeyRecID]
+		return ok
+	}
+}
+
 func timeToDate(t *time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
 }
 
-func FilterArchivedTasks(archivedTasks []string) todotxt.Predicate {
+func filterArchivedTasks(archivedTasks []string) todotxt.Predicate {
 	return func(t todotxt.Task) bool {
 		for _, key := range archivedTasks {
 			if v, ok := t.AdditionalTags[tsk.KeyRecID]; ok && v == key {
@@ -330,7 +345,7 @@ func FilterArchivedTasks(archivedTasks []string) todotxt.Predicate {
 	}
 }
 
-func FilterMapContains(idArray []int) todotxt.Predicate {
+func filterMapContains(idArray []int) todotxt.Predicate {
 	return func(t todotxt.Task) bool {
 		for _, id := range idArray {
 			if t.ID == id {
@@ -341,7 +356,7 @@ func FilterMapContains(idArray []int) todotxt.Predicate {
 	}
 }
 
-func FilterCompareDate(date time.Time) todotxt.Predicate {
+func filterCompareDate(date time.Time) todotxt.Predicate {
 	return func(t todotxt.Task) bool {
 		taskMakedDoing := time.Time{}
 		if v, ok := t.AdditionalTags[tsk.KeyStartDoing]; ok {
@@ -375,6 +390,24 @@ func FilterCompareDate(date time.Time) todotxt.Predicate {
 }
 
 func (d *Database) RefreshProjects(day int) error {
+	allTasks := append(d.LivingTasks, d.HiddenTasks...)
+	sortTaskReferences(allTasks)
+
+	recIDMap := map[string]string{}
+	tasksHasRecID := *allTasks.Filter(filterHasRecID())
+	for i := range tasksHasRecID {
+		t := tasksHasRecID[i]
+		recIDMap[tsk.GetTaskKey(*t)] = t.AdditionalTags[tsk.KeyRecID]
+	}
+	tasksNotHasRecID := *allTasks.Filter(todotxt.FilterNot(filterHasRecID())).Filter(filterHasRec())
+	for i := range tasksNotHasRecID {
+		t := tasksNotHasRecID[i]
+		// RecIDを持たないことはFilterNot(filterHasRecID())で確認済み
+		if recID, ok := recIDMap[tsk.GetTaskKey(*t)]; ok {
+			t.AdditionalTags[tsk.KeyRecID] = recID
+		}
+	}
+
 	if err := d.recurrentTasks(day); err != nil {
 		return err
 	}
@@ -397,24 +430,24 @@ func (d *Database) RefreshProjects(day int) error {
 		date := time.Now().AddDate(0, 0, day)
 		return *tasklist.Filter(todotxt.FilterNotCompleted).
 			Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).
-			Filter(FilterCompareDate(date)).
-			Filter(todotxt.FilterNot(FilterArchivedTasks(d.ArchivedTasks)))
+			Filter(filterCompareDate(date)).
+			Filter(todotxt.FilterNot(filterArchivedTasks(d.ArchivedTasks)))
 	}
 
 	getDoingTasks := func(tasklist TaskReferences, day int) TaskReferences {
 		date := time.Now().AddDate(0, 0, day)
 		return *tasklist.Filter(todotxt.FilterNotCompleted).
 			Filter(todotxt.FilterByContext("doing")).
-			Filter(FilterCompareDate(date)).
-			Filter(todotxt.FilterNot(FilterArchivedTasks(d.ArchivedTasks)))
+			Filter(filterCompareDate(date)).
+			Filter(todotxt.FilterNot(filterArchivedTasks(d.ArchivedTasks)))
 	}
 
 	getDoneTasks := func(tasklist TaskReferences, day int) TaskReferences {
 		date := time.Now().AddDate(0, 0, day)
 		tasks := *tasklist.Filter(todotxt.FilterCompleted).
 			Filter(todotxt.FilterNot(todotxt.FilterByContext("doing"))).
-			Filter(FilterCompareDate(date)).
-			Filter(todotxt.FilterNot(FilterArchivedTasks(d.ArchivedTasks)))
+			Filter(filterCompareDate(date)).
+			Filter(todotxt.FilterNot(filterArchivedTasks(d.ArchivedTasks)))
 		sort.Slice(tasks, func(i, j int) bool {
 			return tasks[i].CompletedDate.After(tasks[j].CompletedDate)
 		})
