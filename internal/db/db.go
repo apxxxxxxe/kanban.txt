@@ -99,9 +99,6 @@ func copyTask(t todotxt.Task) todotxt.Task {
 
 func sortTaskReferences(taskList TaskReferences) {
 	sort.Slice(taskList, func(i, j int) bool {
-		return taskList[i].String() < taskList[j].String()
-	})
-	sort.Slice(taskList, func(i, j int) bool {
 		if taskList[i].Completed != taskList[j].Completed {
 			return !taskList[i].Completed && taskList[j].Completed
 		} else if taskList[i].Priority != taskList[j].Priority {
@@ -109,7 +106,7 @@ func sortTaskReferences(taskList TaskReferences) {
 		} else if !taskList[i].DueDate.Equal(taskList[j].DueDate) {
 			return taskList[i].DueDate.Before(taskList[j].DueDate)
 		} else {
-			return taskList[i].Todo < taskList[j].Todo
+			return taskList[i].String() < taskList[j].String()
 		}
 	})
 }
@@ -167,6 +164,18 @@ func comparePriority(p1, p2 string) bool {
 	}
 }
 
+func devideTasks(tasks TaskReferences) (TaskReferences, TaskReferences) {
+	allTaskMap := makeTaskMap(tasks)
+	idArray := []int{}
+	for k := range allTaskMap {
+		idArray = append(idArray, allTaskMap[k].ID)
+	}
+	sort.Ints(idArray)
+
+	return *tasks.Filter(filterMapContains(idArray)),
+		*tasks.Filter(todotxt.FilterNot(filterMapContains(idArray)))
+}
+
 func (d *Database) LoadData() error {
 	var err error
 
@@ -175,16 +184,7 @@ func (d *Database) LoadData() error {
 		return err
 	}
 
-	allTaskMap := makeTaskMap(allTasks)
-	idArray := []int{}
-	for k := range allTaskMap {
-		idArray = append(idArray, allTaskMap[k].ID)
-	}
-	sort.Ints(idArray)
-
-	d.LivingTasks = *allTasks.Filter(filterMapContains(idArray))
-
-	d.HiddenTasks = *allTasks.Filter(todotxt.FilterNot(filterMapContains(idArray)))
+	d.LivingTasks, d.HiddenTasks = devideTasks(allTasks)
 
 	var archive Archive
 	b, err := os.ReadFile(ArchivePath)
@@ -240,8 +240,11 @@ func (d *Database) loadData(filePath string) (TaskReferences, error) {
 
 func makeTaskMap(taskList TaskReferences) map[string]*todotxt.Task {
 	sort.Slice(taskList, func(i, j int) bool {
-		return taskList[i].CompletedDate.After(taskList[j].CompletedDate) ||
-			taskList[i].CreatedDate.After(taskList[j].CreatedDate)
+		if taskList[i].Completed != taskList[j].Completed {
+			return !taskList[i].Completed && taskList[j].Completed
+		} else {
+			return taskList[i].CreatedDate.After(taskList[j].CreatedDate)
+		}
 	})
 	taskMap := map[string]*todotxt.Task{}
 	for i := range taskList {
@@ -264,16 +267,22 @@ func (d *Database) ArchiveTask(t *todotxt.Task) {
 
 func (d *Database) recurrentTasks(day int) error {
 	date := time.Now().AddDate(0, 0, day)
-	doneTasks := *d.LivingTasks.Filter(todotxt.FilterCompleted)
-	sort.Slice(doneTasks, func(i, j int) bool {
-		return doneTasks[i].CreatedDate.Before(doneTasks[j].CreatedDate)
+	sort.Slice(d.LivingTasks, func(i, j int) bool {
+		if d.LivingTasks[i].Completed != d.LivingTasks[j].Completed {
+			return d.LivingTasks[i].CompletedDate.After(d.LivingTasks[j].CompletedDate)
+		} else {
+			return d.LivingTasks[i].CreatedDate.After(d.LivingTasks[j].CreatedDate)
+		}
 	})
 
-	taskMap := makeTaskMap(doneTasks)
+	taskMap := makeTaskMap(d.LivingTasks)
 
 	tasks := TaskReferences{}
 	for _, v := range taskMap {
-		tasks = append(tasks, v)
+		if v.Completed {
+			// 最新が完了済みのもののみ繰り返し判定を行う
+			tasks = append(tasks, v)
+		}
 	}
 	sortTaskReferences(tasks)
 
@@ -389,10 +398,22 @@ func filterCompareDate(date time.Time) todotxt.Predicate {
 	}
 }
 
+func uniqueTaskReferences(tasks TaskReferences) TaskReferences {
+	unique := TaskReferences{}
+	taskString := ""
+	for i := range tasks {
+		t := tasks[i]
+		if t.String() != taskString {
+			unique = append(unique, t)
+		}
+		taskString = t.String()
+	}
+	return unique
+}
+
 func (d *Database) RefreshProjects(day int) error {
 	allTasks := append(d.LivingTasks, d.HiddenTasks...)
 	sortTaskReferences(allTasks)
-
 	recIDMap := map[string]string{}
 	tasksHasRecID := *allTasks.Filter(filterHasRecID())
 	for i := range tasksHasRecID {
@@ -407,6 +428,7 @@ func (d *Database) RefreshProjects(day int) error {
 			t.AdditionalTags[tsk.KeyRecID] = recID
 		}
 	}
+	d.LivingTasks, d.HiddenTasks = devideTasks(uniqueTaskReferences(allTasks))
 
 	if err := d.recurrentTasks(day); err != nil {
 		return err
