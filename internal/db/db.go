@@ -165,7 +165,7 @@ func comparePriority(p1, p2 string) bool {
 }
 
 func devideTasks(tasks TaskReferences) (TaskReferences, TaskReferences) {
-	allTaskMap := makeTaskMap(tasks)
+	allTaskMap := makeTaskMap(tasks, tsk.GetTaskKey)
 	idArray := []int{}
 	for k := range allTaskMap {
 		idArray = append(idArray, allTaskMap[k].ID)
@@ -238,7 +238,7 @@ func (d *Database) loadData(filePath string) (TaskReferences, error) {
 	return taskList, nil
 }
 
-func makeTaskMap(taskList TaskReferences) map[string]*todotxt.Task {
+func makeTaskMap(taskList TaskReferences, keyFunc func(todotxt.Task) string) map[string]*todotxt.Task {
 	sort.Slice(taskList, func(i, j int) bool {
 		if taskList[i].Completed != taskList[j].Completed {
 			return !taskList[i].Completed && taskList[j].Completed
@@ -249,7 +249,7 @@ func makeTaskMap(taskList TaskReferences) map[string]*todotxt.Task {
 	taskMap := map[string]*todotxt.Task{}
 	for i := range taskList {
 		t := taskList[i]
-		key := tsk.GetTaskKey(*t)
+		key := keyFunc(*t)
 		if _, ok := taskMap[key]; !ok {
 			taskMap[key] = t
 		}
@@ -265,29 +265,31 @@ func (d *Database) ArchiveTask(t *todotxt.Task) {
 	d.ArchivedTasks = append(d.ArchivedTasks, v)
 }
 
-func (d *Database) recurrentTasks(day int) error {
+func (d *Database) recurrentTasks(tasks *TaskReferences, day int) error {
 	date := time.Now().AddDate(0, 0, day)
-	sort.Slice(d.LivingTasks, func(i, j int) bool {
-		if d.LivingTasks[i].Completed != d.LivingTasks[j].Completed {
-			return d.LivingTasks[i].CompletedDate.After(d.LivingTasks[j].CompletedDate)
+	sort.Slice((*tasks), func(i, j int) bool {
+		if (*tasks)[i].Completed != (*tasks)[j].Completed {
+			return (*tasks)[i].CompletedDate.After((*tasks)[j].CompletedDate)
 		} else {
-			return d.LivingTasks[i].CreatedDate.After(d.LivingTasks[j].CreatedDate)
+			return (*tasks)[i].CreatedDate.After((*tasks)[j].CreatedDate)
 		}
 	})
 
-	taskMap := makeTaskMap(d.LivingTasks)
+	taskMap := makeTaskMap(*tasks.Filter(filterHasRecID()), func(t todotxt.Task) string {
+		return t.AdditionalTags[tsk.KeyRecID]
+	})
 
-	tasks := TaskReferences{}
+	recurrenceCandidates := TaskReferences{}
 	for _, v := range taskMap {
 		if v.Completed {
 			// 最新が完了済みのもののみ繰り返し判定を行う
-			tasks = append(tasks, v)
+			recurrenceCandidates = append(recurrenceCandidates, v)
 		}
 	}
-	sortTaskReferences(tasks)
+	sortTaskReferences(recurrenceCandidates)
 
-	for i := range tasks {
-		t := tasks[i]
+	for i := range recurrenceCandidates {
+		t := recurrenceCandidates[i]
 		if _, ok := t.AdditionalTags[tsk.KeyRec]; ok {
 			nextTime, err := tsk.ParseRecurrence(t)
 			if err != nil {
@@ -299,7 +301,7 @@ func (d *Database) recurrentTasks(day int) error {
 				newTask.Reopen()
 				delete(newTask.AdditionalTags, tsk.KeyStartDoing)
 				newTask.CreatedDate = date
-				d.LivingTasks.AddTask(&newTask)
+				tasks.AddTask(&newTask)
 			}
 		}
 	}
@@ -411,6 +413,14 @@ func uniqueTaskReferences(tasks TaskReferences) TaskReferences {
 	return unique
 }
 
+// 1. allTasksにLivingとHiddenを統合
+// 2. RecIDを持たないタスクにRecIDを付与
+// 3. 繰り返しタスクを生成
+// 4. プロジェクトごとにタスクを分類
+// 5. タスクをプロジェクトごとに分類
+// 6. タスクをLivingとHiddenに分類
+// 7. データを保存
+
 func (d *Database) RefreshProjects(day int) error {
 	allTasks := append(d.LivingTasks, d.HiddenTasks...)
 	sortTaskReferences(allTasks)
@@ -428,17 +438,16 @@ func (d *Database) RefreshProjects(day int) error {
 			t.AdditionalTags[tsk.KeyRecID] = recID
 		}
 	}
-	d.LivingTasks, d.HiddenTasks = devideTasks(uniqueTaskReferences(allTasks))
 
-	if err := d.recurrentTasks(day); err != nil {
+	if err := d.recurrentTasks(&allTasks, day); err != nil {
 		return err
 	}
 
-	sortTaskReferences(d.LivingTasks)
+	sortTaskReferences(allTasks)
 
 	d.Projects = []*Project{}
 
-	if len(d.LivingTasks) == 0 {
+	if len(allTasks) == 0 {
 		return nil
 	}
 
@@ -484,7 +493,7 @@ func (d *Database) RefreshProjects(day int) error {
 
 	projectList := map[string]*Project{}
 	for key, fn := range list {
-		for _, task := range fn(d.LivingTasks, day) {
+		for _, task := range fn(allTasks, day) {
 			projectName := tsk.GetProjectName(*task)
 			project, ok := projectList[projectName]
 			if !ok {
@@ -509,9 +518,9 @@ func (d *Database) RefreshProjects(day int) error {
 	}
 	allTaskProject := &Project{
 		ProjectName: AllTasks,
-		TodoTasks:   getTodoTasks(d.LivingTasks, day),
-		DoingTasks:  getDoingTasks(d.LivingTasks, day),
-		DoneTasks:   getDoneTasks(d.LivingTasks, day),
+		TodoTasks:   getTodoTasks(allTasks, day),
+		DoingTasks:  getDoingTasks(allTasks, day),
+		DoneTasks:   getDoneTasks(allTasks, day),
 	}
 	projects = append(projects, allTaskProject)
 
@@ -533,6 +542,8 @@ func (d *Database) RefreshProjects(day int) error {
 	})
 
 	d.Projects = projects
+
+	d.LivingTasks, d.HiddenTasks = devideTasks(uniqueTaskReferences(allTasks))
 
 	if err := d.SaveData(); err != nil {
 		return err
