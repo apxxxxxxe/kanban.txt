@@ -10,7 +10,7 @@ import (
 
 const (
 	KeyRec        = "rec"   // 繰り返し情報
-  KeyRecID      = "recid" // 繰り返し情報のID
+	KeyRecID      = "recid" // 繰り返し情報のID
 	KeyNote       = "note"  // 備考
 	KeyStartDoing = "doing" // Doingにした日時
 )
@@ -24,6 +24,9 @@ func GetProjectName(t todotxt.Task) string {
 }
 
 func GetTaskKey(t todotxt.Task) string {
+	if recID, ok := t.AdditionalTags[KeyRecID]; ok {
+		return recID
+	}
 	return t.Todo + t.Priority + GetProjectName(t)
 }
 
