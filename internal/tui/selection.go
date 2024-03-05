@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
+	"github.com/rivo/tview"
 )
 
 func (t *Tui) setSelectedFunc() {
@@ -80,7 +81,7 @@ func (t *Tui) tableSelectionChangedFunc(table *TodoTable, row, col int) {
 		}
 		description := [][]string{}
 		for _, field := range fields {
-			description = append(description, []string{field, getTaskField(task, field)})
+			description = append(description, []string{field, tview.Escape(getTaskField(task, field))})
 		}
 		t.Descript(description)
 	} else {

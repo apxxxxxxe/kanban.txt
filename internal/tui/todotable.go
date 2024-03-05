@@ -78,7 +78,7 @@ func (t *TodoTable) setCell(f *todo.Task) *tview.TableCell {
 		text = " " + text
 	}
 
-	cell := tview.NewTableCell(text).SetReference(f)
+	cell := tview.NewTableCell(tview.Escape(text)).SetReference(f)
 
 	if f.HasPriority() {
 		switch f.Priority {
