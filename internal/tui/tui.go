@@ -2,11 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/1set/todotxt"
 	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/apxxxxxxe/kanban.txt/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/rivo/tview"
-	"time"
 )
 
 type Tui struct {
@@ -168,7 +170,7 @@ func (t *Tui) getCurrentDay() (int, int) {
 }
 
 func (t *Tui) refreshProjects() {
-  day, _ := t.getCurrentDay()
+	day, _ := t.getCurrentDay()
 	if err := t.DB.RefreshProjects(day); err != nil {
 		t.Notify(err.Error(), true)
 	}
@@ -222,6 +224,20 @@ func (t *Tui) Run() error {
 
 	if err := t.App.Run(); err != nil {
 		t.App.Stop()
+		return err
+	}
+
+	return nil
+}
+
+func (t *Tui) AddTask(task todotxt.Task) error {
+	if err := t.DB.LoadData(); err != nil {
+		return err
+	}
+
+	t.DB.LivingTasks.AddTask(&task)
+
+	if err := t.DB.SaveData(); err != nil {
 		return err
 	}
 
