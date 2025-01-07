@@ -33,7 +33,7 @@ const (
 )
 
 func LoadOrNewConfig() *Config {
-	config, err := loadConfig(ConfigPath)
+	config, err := loadConfig(filepath.Join(getDataPath(), ConfigFile))
 	if err != nil {
 		config = newConfig()
 		SaveConfig(config)
@@ -42,7 +42,7 @@ func LoadOrNewConfig() *Config {
 }
 
 func SaveConfig(config *Config) error {
-	return saveConfig(config, ConfigPath)
+	return saveConfig(config, filepath.Join(getDataPath(), ConfigFile))
 }
 
 // H is 0 to 360,

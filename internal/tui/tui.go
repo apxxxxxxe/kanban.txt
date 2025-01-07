@@ -52,7 +52,7 @@ const (
 	enumDoingPane
 )
 
-var ErrImportFileNotFound = errors.Errorf(db.ImportPath + " not found")
+var ErrImportFileNotFound = errors.Errorf("todo.txt not found")
 
 func NewTui() *Tui {
 	tview.Styles.ContrastBackgroundColor = tview.Styles.PrimitiveBackgroundColor

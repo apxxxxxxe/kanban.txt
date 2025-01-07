@@ -24,12 +24,14 @@ const (
 	DayCount          = 7
 )
 
+const (
+	ArchiveFile = "archive.json"
+	ImportFile  = "todo.txt"
+	ConfigFile  = "config.json"
+)
+
 var (
-	DataPath       = filepath.Join(getDataPath(), "data")
-	ExportListPath = filepath.Join(getDataPath(), "list_export.txt")
-	ArchivePath    = filepath.Join(getDataPath(), "archive.json")
-	ImportPath     = filepath.Join(getDataPath(), "todo.txt")
-	ConfigPath     = filepath.Join(getDataPath(), "config.json")
+	CustomDataPath = ""
 )
 
 type Database struct {
@@ -51,6 +53,9 @@ type Project struct {
 }
 
 func getDataPath() string {
+	if CustomDataPath != "" {
+		return CustomDataPath
+	}
 	configDir, _ := os.UserConfigDir()
 	return filepath.Join(configDir, dataRoot)
 }
@@ -112,7 +117,7 @@ func sortTaskReferences(taskList TaskReferences) {
 }
 
 func (d *Database) SaveData() error {
-	return d.saveData(append(d.LivingTasks, d.HiddenTasks...), ImportPath)
+	return d.saveData(append(d.LivingTasks, d.HiddenTasks...), filepath.Join(getDataPath(), ImportFile))
 }
 
 func (d *Database) saveData(taskList TaskReferences, filePath string) error {
@@ -147,7 +152,7 @@ func (d *Database) saveData(taskList TaskReferences, filePath string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(ArchivePath, b, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(getDataPath(), ArchiveFile), b, 0644); err != nil {
 		return err
 	}
 
@@ -179,7 +184,7 @@ func devideTasks(tasks TaskReferences) (TaskReferences, TaskReferences) {
 func (d *Database) LoadData() error {
 	var err error
 
-	allTasks, err := d.loadData(ImportPath)
+	allTasks, err := d.loadData(filepath.Join(getDataPath(), ImportFile))
 	if err != nil {
 		return err
 	}
@@ -187,7 +192,7 @@ func (d *Database) LoadData() error {
 	d.LivingTasks, d.HiddenTasks = devideTasks(allTasks)
 
 	var archive Archive
-	b, err := os.ReadFile(ArchivePath)
+	b, err := os.ReadFile(filepath.Join(getDataPath(), ArchiveFile))
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return err
