@@ -2,7 +2,6 @@ package tui
 
 import (
 	"github.com/1set/todotxt"
-	db "github.com/apxxxxxxe/kanban.txt/internal/db"
 	"github.com/rivo/tview"
 )
 
@@ -14,20 +13,20 @@ func (t *Tui) setSelectedFunc() {
 	t.DonePane.SetSelectionChangedFunc(t.donePaneSelectionChangedFunc)
 }
 
-func (t *Tui) reDrawProjects() *db.Project {
+func (t *Tui) reDrawProjects() {
 	day, _ := t.getCurrentDay()
 	t.DB.RefreshProjects(day)
 	projects := t.DB.Projects
 
 	// TODO: 見た目との分離; 現在はProjectsByDateの各要素間でProjectとその並びが同一であることを前提にしている
 	projectIndex, _ := t.ProjectPane.GetSelection()
-	project := projects[projectIndex]
+	if len(projects) > 0 {
+		project := projects[projectIndex]
 
-	t.TodoPane.ResetCell(project.TodoTasks)
-	t.DoingPane.ResetCell(project.DoingTasks)
-	t.DonePane.ResetCell(project.DoneTasks)
-
-	return project
+		t.TodoPane.ResetCell(project.TodoTasks)
+		t.DoingPane.ResetCell(project.DoingTasks)
+		t.DonePane.ResetCell(project.DoneTasks)
+	}
 }
 
 func (t *Tui) daysTableSelectionChangedFunc(row, col int) {
